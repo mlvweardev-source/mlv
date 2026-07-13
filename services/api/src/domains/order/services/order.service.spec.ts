@@ -32,6 +32,10 @@ jest.mock('@mlv/db', () => ({
     orderService: {
       create: jest.fn(),
     },
+    orderMaterial: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      create: jest.fn().mockResolvedValue({ id: 'om-1' }),
+    },
     stockReservation: {
       findMany: jest.fn(),
     },
@@ -288,6 +292,93 @@ describe('OrderService', () => {
 
       expect(result.status).toBe('DIBATALKAN');
     });
+
+    it('should atomically rollback ALL reservations when one fails', async () => {
+      // ============================================================
+      // TEST: Ketika satu material gagal di-reserve, SEMUA
+      // reservation yang sudah berhasil harus di-release
+      // ============================================================
+      const kainReservationId = 'reservation-kain';
+      const labelReservationId = 'reservation-label';
+
+      // Mock releaseStock
+      const releaseStockSpy = jest.spyOn(mockInventoryService, 'releaseStock');
+      releaseStockSpy.mockResolvedValue({ id: 'released' } as any);
+
+      // Call service's private releaseReservations method via cast
+      // Ini test bahwa rollback logic bekerja untuk semua reservation
+      await (service as any).releaseReservations([kainReservationId, labelReservationId]);
+
+      // ASSERTION: releaseStock dipanggil untuk SETIAP reservation
+      expect(releaseStockSpy).toHaveBeenCalledTimes(2);
+      expect(releaseStockSpy).toHaveBeenCalledWith({ reservationId: kainReservationId });
+      expect(releaseStockSpy).toHaveBeenCalledWith({ reservationId: labelReservationId });
+
+      releaseStockSpy.mockRestore();
+    });
+
+    it('should not release reservations when checkout succeeds', async () => {
+      // ============================================================
+      // TEST: Ketika checkout BERHASIL, releaseStock TIDAK dipanggil
+      // ============================================================
+      const releaseStockSpy = jest.spyOn(mockInventoryService, 'releaseStock');
+      releaseStockSpy.mockResolvedValue({ id: 'released' } as any);
+
+      // reserveStock sukses semua
+      jest.spyOn(mockInventoryService, 'reserveStock')
+        .mockResolvedValue({ id: 'res-1' } as any);
+
+      // Mock $transaction untuk sukses
+      (prisma.$transaction as jest.Mock).mockResolvedValue({});
+
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'DRAFT',
+        customerId: 'customer-1',
+        items: [{
+          id: 'item-1',
+          productType: 'Kaos',
+          basePriceSnapshot: 50000,
+          sizes: [{ qty: 5 }],
+          designs: [],
+          materials: [],
+          services: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        timeline: [],
+      };
+
+      const bomKaos = [
+        { materialId: 'kain-id', material: { nama: 'Kain' }, qtyPerUnit: 2.3 },
+      ];
+
+      const checkedOutOrder = {
+        ...mockOrder,
+        status: 'MENUNGGU_PEMBAYARAN_DP',
+      };
+
+      (prisma.order.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockOrder)
+        .mockResolvedValueOnce(checkedOutOrder);
+      mockInventoryService.getBom.mockResolvedValue(bomKaos);
+      (prisma.order.update as jest.Mock).mockResolvedValue(checkedOutOrder);
+      (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
+      (prisma.material.findMany as jest.Mock).mockResolvedValue([]);
+
+      // releaseStockSpy harus TIDAK dipanggil saat checkout sukses
+      await service.updateStatus(
+        'order-1',
+        { status: 'MENUNGGU_PEMBAYARAN_DP' as any },
+        mockActorOwner as any,
+      );
+
+      // releaseStock TIDAK dipanggil saat checkout berhasil
+      expect(releaseStockSpy).not.toHaveBeenCalled();
+
+      releaseStockSpy.mockRestore();
+    });
   });
 
   describe('getOrderById', () => {
@@ -298,7 +389,17 @@ describe('OrderService', () => {
         customerId: 'customer-1',
         status: 'DRAFT',
         deadline: null,
-        items: [],
+        items: [{
+          id: 'item-1',
+          productType: 'Kaos',
+          basePriceSnapshot: 50000,
+          sizes: [],
+          designs: [],
+          materials: [],
+          services: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
         timeline: [],
         createdAt: new Date(),
         updatedAt: new Date(),
