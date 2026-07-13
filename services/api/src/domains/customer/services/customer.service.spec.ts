@@ -18,6 +18,8 @@ jest.mock('@mlv/db', () => ({
   },
 }));
 
+const prismaMock = prisma as any;
+
 describe('CustomerService', () => {
   let service: CustomerService;
   let eventEmitter: EventEmitter2;
@@ -49,7 +51,7 @@ describe('CustomerService', () => {
 
     it('should allow customer to view their own profile', async () => {
       const mockCustomer = { id: 'customer-1', nama: 'Budi' };
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
 
       const actor = { sub: 'customer-1', actorType: ActorType.CUSTOMER };
       const result = await service.findOne('customer-1', actor);
@@ -59,7 +61,7 @@ describe('CustomerService', () => {
 
     it('should allow staff to view any customer profile', async () => {
       const mockCustomer = { id: 'customer-2', nama: 'Siti' };
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
 
       const actor = { sub: 'staff-1', actorType: ActorType.USER, role: UserRole.MANAJER_PRODUKSI };
       const result = await service.findOne('customer-2', actor);
@@ -68,7 +70,7 @@ describe('CustomerService', () => {
     });
 
     it('should throw NotFoundException if customer does not exist', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue(null);
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(null);
 
       const actor = { sub: 'staff-1', actorType: ActorType.USER, role: UserRole.OWNER };
       await expect(service.findOne('nonexistent', actor)).rejects.toThrow(NotFoundException);
@@ -81,8 +83,8 @@ describe('CustomerService', () => {
       const mockCustomer = { id: 'customer-1', nama: 'Budi' };
       const mockReview = { id: 'review-1', customerId: 'customer-1', rating: 5, komentar: 'Bagus' };
 
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
-      (prisma.review.create as jest.Mock).mockResolvedValue(mockReview);
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
+      (prismaMock.review.create as jest.Mock).mockResolvedValue(mockReview);
 
       const result = await service.createReview(
         'customer-1',
@@ -91,7 +93,7 @@ describe('CustomerService', () => {
       );
 
       expect(result).toEqual(mockReview);
-      expect(prisma.review.create).toHaveBeenCalledWith({
+      expect(prismaMock.review.create).toHaveBeenCalledWith({
         data: {
           customerId: 'customer-1',
           rating: 5,
