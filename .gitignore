@@ -6,39 +6,46 @@ node_modules/
 dist/
 .next/
 out/
-
-# Turborepo
 .turbo/
+*.tsbuildinfo
+.eslintcache
 
 # Environment variables (NEVER commit secrets)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Prisma
 packages/db/prisma/migrations/**/migration_lock.toml
 
-# IDE
+# IDE / Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# OS Metadata
 .DS_Store
 Thumbs.db
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
 
 # Test coverage
 coverage/
+.nyc_output
 
-# Docker volumes (local)
+# Docker volumes (local database directories)
 docker/pgdata/
 docker/redisdata/
 
 # Misc
-*.tsbuildinfo
+.cache/
+.parcel-cache/
+.svelte-kit/
+.docusaurus/
+
