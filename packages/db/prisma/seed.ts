@@ -111,11 +111,17 @@ async function main() {
   // --- Materials ---
   console.log('🌱 Seeding materials...');
   const materialsData = [
+    // Shared materials
     { nama: 'Kain', satuan: 'meter', kategori: 'kain' },
     { nama: 'Label', satuan: 'pcs', kategori: 'aksesoris' },
     { nama: 'Plastik Kemasan', satuan: 'pcs', kategori: 'aksesoris' },
     { nama: 'Hangtag', satuan: 'pcs', kategori: 'aksesoris' },
     { nama: 'Benang', satuan: 'cone', kategori: 'aksesoris' },
+    // Kemeja specific
+    { nama: 'Kancing', satuan: 'pcs', kategori: 'kancing' },
+    // Hoodie & Tas specific
+    { nama: 'Tali Hoodie', satuan: 'pcs', kategori: 'aksesoris' },
+    { nama: 'Tali Tas', satuan: 'pcs', kategori: 'aksesoris' },
   ];
 
   const materials: Record<string, any> = {};
@@ -133,8 +139,8 @@ async function main() {
   }
 
   // --- BOM for Kaos (§25.2) ---
-  console.log('🌱 Seeding BOM for Kaos (Contoh data - Kaos)...');
-  const bomData = [
+  console.log('🌱 Seeding BOM for Kaos...');
+  const bomKaos = [
     { materialName: 'Kain', qtyPerUnit: 2.3 },
     { materialName: 'Label', qtyPerUnit: 1.0 },
     { materialName: 'Plastik Kemasan', qtyPerUnit: 1.0 },
@@ -142,7 +148,7 @@ async function main() {
     { materialName: 'Benang', qtyPerUnit: 0.3 },
   ];
 
-  for (const b of bomData) {
+  for (const b of bomKaos) {
     const material = materials[b.materialName];
     if (material) {
       await prisma.billOfMaterial.upsert({
@@ -165,14 +171,151 @@ async function main() {
     }
   }
 
+  // --- BOM for Kemeja ---
+  console.log('🌱 Seeding BOM for Kemeja (placeholder - review dengan data produksi asli)...');
+  const bomKemeja = [
+    { materialName: 'Kain', qtyPerUnit: 2.6 },
+    { materialName: 'Kancing', qtyPerUnit: 7.0 },
+    { materialName: 'Label', qtyPerUnit: 1.0 },
+    { materialName: 'Plastik Kemasan', qtyPerUnit: 1.0 },
+    { materialName: 'Hangtag', qtyPerUnit: 1.0 },
+    { materialName: 'Benang', qtyPerUnit: 0.35 },
+  ];
+
+  for (const b of bomKemeja) {
+    const material = materials[b.materialName];
+    if (material) {
+      await prisma.billOfMaterial.upsert({
+        where: {
+          productType_materialId: {
+            productType: 'Kemeja',
+            materialId: material.id,
+          },
+        },
+        update: {
+          qtyPerUnit: b.qtyPerUnit,
+        },
+        create: {
+          productType: 'Kemeja',
+          materialId: material.id,
+          qtyPerUnit: b.qtyPerUnit,
+        },
+      });
+      console.log(`  ✅ BOM Kemeja: ${b.materialName} -> ${b.qtyPerUnit} ${material.satuan}`);
+    }
+  }
+
+  // --- BOM for Hoodie ---
+  console.log('🌱 Seeding BOM for Hoodie (placeholder - review dengan data produksi asli)...');
+  const bomHoodie = [
+    { materialName: 'Kain', qtyPerUnit: 3.5 },
+    { materialName: 'Tali Hoodie', qtyPerUnit: 1.0 },
+    { materialName: 'Label', qtyPerUnit: 1.0 },
+    { materialName: 'Plastik Kemasan', qtyPerUnit: 1.0 },
+    { materialName: 'Hangtag', qtyPerUnit: 1.0 },
+    { materialName: 'Benang', qtyPerUnit: 0.5 },
+  ];
+
+  for (const b of bomHoodie) {
+    const material = materials[b.materialName];
+    if (material) {
+      await prisma.billOfMaterial.upsert({
+        where: {
+          productType_materialId: {
+            productType: 'Hoodie',
+            materialId: material.id,
+          },
+        },
+        update: {
+          qtyPerUnit: b.qtyPerUnit,
+        },
+        create: {
+          productType: 'Hoodie',
+          materialId: material.id,
+          qtyPerUnit: b.qtyPerUnit,
+        },
+      });
+      console.log(`  ✅ BOM Hoodie: ${b.materialName} -> ${b.qtyPerUnit} ${material.satuan}`);
+    }
+  }
+
+  // --- BOM for Topi ---
+  console.log('🌱 Seeding BOM for Topi (placeholder - review dengan data produksi asli)...');
+  const bomTopi = [
+    { materialName: 'Kain', qtyPerUnit: 0.3 },
+    { materialName: 'Label', qtyPerUnit: 1.0 },
+    { materialName: 'Hangtag', qtyPerUnit: 1.0 },
+    { materialName: 'Benang', qtyPerUnit: 0.1 },
+  ];
+
+  for (const b of bomTopi) {
+    const material = materials[b.materialName];
+    if (material) {
+      await prisma.billOfMaterial.upsert({
+        where: {
+          productType_materialId: {
+            productType: 'Topi',
+            materialId: material.id,
+          },
+        },
+        update: {
+          qtyPerUnit: b.qtyPerUnit,
+        },
+        create: {
+          productType: 'Topi',
+          materialId: material.id,
+          qtyPerUnit: b.qtyPerUnit,
+        },
+      });
+      console.log(`  ✅ BOM Topi: ${b.materialName} -> ${b.qtyPerUnit} ${material.satuan}`);
+    }
+  }
+
+  // --- BOM for Tas ---
+  console.log('🌱 Seeding BOM for Tas (placeholder - review dengan data produksi asli)...');
+  const bomTas = [
+    { materialName: 'Kain', qtyPerUnit: 0.8 },
+    { materialName: 'Tali Tas', qtyPerUnit: 2.0 },
+    { materialName: 'Label', qtyPerUnit: 1.0 },
+    { materialName: 'Benang', qtyPerUnit: 0.2 },
+  ];
+
+  for (const b of bomTas) {
+    const material = materials[b.materialName];
+    if (material) {
+      await prisma.billOfMaterial.upsert({
+        where: {
+          productType_materialId: {
+            productType: 'Tas',
+            materialId: material.id,
+          },
+        },
+        update: {
+          qtyPerUnit: b.qtyPerUnit,
+        },
+        create: {
+          productType: 'Tas',
+          materialId: material.id,
+          qtyPerUnit: b.qtyPerUnit,
+        },
+      });
+      console.log(`  ✅ BOM Tas: ${b.materialName} -> ${b.qtyPerUnit} ${material.satuan}`);
+    }
+  }
+
   // --- Initial Stock Balances & Movements ---
   console.log('🌱 Seeding initial stock balances (tercatat lewat stock_movements)...');
   const initialStock = [
+    // Existing
     { name: 'Kain', qty: 1000 },
     { name: 'Label', qty: 5000 },
     { name: 'Plastik Kemasan', qty: 5000 },
     { name: 'Hangtag', qty: 5000 },
     { name: 'Benang', qty: 200 },
+    // New materials
+    { name: 'Kancing', qty: 3000 },
+    { name: 'Tali Hoodie', qty: 500 },
+    { name: 'Tali Tas', qty: 1000 },
   ];
 
   for (const item of initialStock) {

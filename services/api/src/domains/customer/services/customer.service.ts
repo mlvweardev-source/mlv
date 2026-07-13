@@ -69,8 +69,7 @@ export class CustomerService {
   }
 
   /**
-   * GET /customers/:id/orders — Stub (Order Domain belum ada, Fase 3).
-   * Return array kosong dengan pesan jelas.
+   * GET /customers/:id/orders — Ambil daftar order pelanggan.
    */
   async findOrders(id: string, actor: JwtPayload) {
     this.ensureCustomerAccess(id, actor);
@@ -81,10 +80,27 @@ export class CustomerService {
       throw new NotFoundException('Pelanggan tidak ditemukan');
     }
 
+    // Query Order Domain
+    const orders = await prisma.order.findMany({
+      where: { customerId: id },
+      include: {
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       customerId: id,
-      orders: [],
-      message: 'Order Domain belum diimplementasi (Fase 3)',
+      customerNama: customer.nama,
+      orders: orders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        deadline: o.deadline,
+        createdAt: o.createdAt,
+        itemCount: o._count.items,
+      })),
+      totalOrders: orders.length,
     };
   }
 

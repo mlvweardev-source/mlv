@@ -109,6 +109,139 @@ model Review {
 }
 
 // ==========================================
+// Order Domain (§6.2)
+// ==========================================
+
+/// Status pesanan — mengikuti alur §25.1
+/// Transisi fase ini: Draft → Menunggu Pembayaran DP
+enum OrderStatus {
+  DRAFT
+  MENUNGGU_PEMBAYARAN_DP
+  ANTREAN
+  CUTTING
+  PRINTING
+  EMBROIDERY
+  SEWING
+  FINISHING
+  IRONING
+  PACKING
+  SELESAI
+  MENUNGGU_PELUNASAN
+  LUNAS
+  DIKIRIM
+  DIBATALKAN
+}
+
+/// Master pesanan
+model Order {
+  id           String      @id @default(uuid())
+  orderNumber  String      @unique @map("order_number") // Human-readable: MLV-YYYYMMDD-XXXX
+  customerId   String      @map("customer_id")
+  status       OrderStatus @default(DRAFT)
+  deadline     DateTime?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  items        OrderItem[]
+  timeline     OrderTimelineEvent[]
+
+  @@map("orders")
+}
+
+/// Item dalam pesanan (bisa berbagai jenis produk)
+model OrderItem {
+  id               String   @id @default(uuid())
+  orderId          String   @map("order_id")
+  productType      String   @map("product_type")
+  basePriceSnapshot Float   @default(0) @map("base_price_snapshot")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sizes            OrderSize[]
+  designs          OrderDesign[]
+  materials        OrderMaterial[]
+  services         OrderService[]
+
+  @@map("order_items")
+}
+
+/// Ukuran dan kuantitas per item
+model OrderSize {
+  id         String   @id @default(uuid())
+  orderItemId String  @map("order_item_id")
+  ukuran     String
+  qty        Int
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  orderItem  OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("order_sizes")
+}
+
+/// Desain yang diupload pelanggan
+model OrderDesign {
+  id                 String   @id @default(uuid())
+  orderItemId       String   @map("order_item_id")
+  fileUrl           String?  @map("file_url")
+  catatanTeks       String?  @map("catatan_teks")
+  hasilEkstraksiAi  Json?   @map("hasil_ekstraksi_ai") // Hasil AI Design Analyzer — Fase 12
+  statusKonfirmasi  String   @default("MENUNGGU") @map("status_konfirmasi") // MENUNGGU/DITERIMA/DITOLAK
+  versiRevisi       Int      @default(1) @map("versi_revisi")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  orderItem         OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("order_designs")
+}
+
+/// Kebutuhan material per item — dihitung otomatis dari BOM × qty
+/// BUKAN input manual dari client
+/// Relasi ke Material adalah plain foreign key (DDD cross-domain, tidak perlu opposite relation)
+model OrderMaterial {
+  id           String   @id @default(uuid())
+  orderItemId String   @map("order_item_id")
+  materialId  String   @map("material_id")
+  qtyRequired Float    @map("qty_required")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([orderItemId, materialId])
+  @@map("order_materials")
+}
+
+/// Layanan tambahan (bordir, sablon, dll)
+model OrderService {
+  id           String   @id @default(uuid())
+  orderItemId  String   @map("order_item_id")
+  serviceType  String   @map("service_type")
+  lokasi       String?
+  ukuran       String?
+  tarif        Float
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("order_services")
+}
+
+/// Timeline event untuk tracking order (§10)
+model OrderTimelineEvent {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  tipeEvent   String   @map("tipe_event")
+  deskripsi   String
+  actorId     String?  @map("actor_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_timeline_events")
+}
+
+// ==========================================
 // Inventory Domain (§6.4)
 // ==========================================
 

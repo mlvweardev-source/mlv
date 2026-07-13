@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { IdentityAccessModule } from './domains/identity-access/identity-access.module';
 import { CustomerModule } from './domains/customer/customer.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
+import { OrderModule } from './domains/order/order.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -18,6 +19,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     IdentityAccessModule,
     CustomerModule,
     InventoryModule,
+    OrderModule,
   ],
   controllers: [AppController],
   providers: [
