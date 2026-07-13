@@ -1,0 +1,32 @@
+# ---- Build Stage ----
+FROM node:24-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
+
+# Copy ai-gateway service
+COPY services/ai-gateway ./services/ai-gateway
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @mlv/ai-gateway build
+
+# ---- Production Stage ----
+FROM node:24-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/services/ai-gateway/dist ./services/ai-gateway/dist
+COPY --from=builder /app/services/ai-gateway/package.json ./services/ai-gateway/package.json
+
+WORKDIR /app/services/ai-gateway
+
+EXPOSE 3002
+
+CMD ["node", "dist/main"]

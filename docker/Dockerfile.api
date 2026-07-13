@@ -1,0 +1,38 @@
+# ---- Build Stage ----
+FROM node:24-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
+
+# Copy packages needed by api
+COPY packages/db ./packages/db
+COPY packages/types ./packages/types
+
+# Copy api service
+COPY services/api ./services/api
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @mlv/db db:generate
+RUN pnpm --filter @mlv/api build
+
+# ---- Production Stage ----
+FROM node:24-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/db ./packages/db
+COPY --from=builder /app/services/api/dist ./services/api/dist
+COPY --from=builder /app/services/api/package.json ./services/api/package.json
+
+WORKDIR /app/services/api
+
+EXPOSE 3000
+
+CMD ["node", "dist/main"]

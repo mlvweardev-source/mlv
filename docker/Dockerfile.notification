@@ -1,0 +1,32 @@
+# ---- Build Stage ----
+FROM node:24-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
+
+# Copy notification service
+COPY services/notification ./services/notification
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @mlv/notification build
+
+# ---- Production Stage ----
+FROM node:24-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/services/notification/dist ./services/notification/dist
+COPY --from=builder /app/services/notification/package.json ./services/notification/package.json
+
+WORKDIR /app/services/notification
+
+EXPOSE 3001
+
+CMD ["node", "dist/main"]

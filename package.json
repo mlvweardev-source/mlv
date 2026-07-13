@@ -1,0 +1,25 @@
+{
+  "name": "mlv",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "eslint . && turbo run lint",
+    "format": "prettier --write .",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @mlv/db db:generate",
+    "db:migrate": "pnpm --filter @mlv/db db:migrate",
+    "db:push": "pnpm --filter @mlv/db db:push"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.4.2",
+    "turbo": "^2.0.0",
+    "typescript-eslint": "^8.18.0"
+  },
+  "packageManager": "pnpm@11.9.0"
+}

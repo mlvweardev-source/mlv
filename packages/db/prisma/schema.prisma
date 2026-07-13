@@ -1,0 +1,24 @@
+// ==============================================
+// Prisma Schema — MLV
+// Lokasi: packages/db/prisma/schema.prisma
+// Ini adalah SATU-SATUNYA lokasi Prisma di monorepo.
+// ==============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Placeholder model untuk verifikasi prisma generate jalan.
+/// Model domain (Customer, Order, dst) akan ditambahkan mulai Fase 1.
+model HealthCheck {
+  id        Int      @id @default(autoincrement())
+  status    String
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  @@map("health_checks")
+}
