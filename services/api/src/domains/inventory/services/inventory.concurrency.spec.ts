@@ -1,3 +1,4 @@
+import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load .env before importing prisma using Node's native process.loadEnvFile (supported in Node 20.6+)
@@ -10,7 +11,7 @@ if (typeof (process as any).loadEnvFile === 'function') {
 } else {
   // Fallback in case of older node versions during test environments
   try {
-    require('dotenv').config({ path: path.resolve(__dirname, '../../../../../../.env') });
+    dotenv.config({ path: path.resolve(__dirname, '../../../../../../.env') });
   } catch (e) {
     // Gracefully handle missing package/file
   }
@@ -73,7 +74,9 @@ describe('InventoryService (Concurrency Integration)', () => {
     if (skipTests) {
       try {
         await prisma.$disconnect();
-      } catch (e) {}
+      } catch (e) {
+        // Disconnect errors can be safely ignored
+      }
       return;
     }
     // Cleanup data test

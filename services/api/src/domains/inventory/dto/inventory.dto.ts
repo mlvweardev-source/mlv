@@ -1,4 +1,12 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsDateString, Min, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { StockMovementType } from '@mlv/db';
 
 export class CreateMaterialDto {

@@ -71,7 +71,11 @@ describe('InventoryService (Unit)', () => {
       const mockMaterial = { id: 'mat-1', nama: 'Kain', satuan: 'meter', kategori: 'kain' };
       (prisma.material.create as jest.Mock).mockResolvedValue(mockMaterial);
 
-      const result = await service.createMaterial({ nama: 'Kain', satuan: 'meter', kategori: 'kain' });
+      const result = await service.createMaterial({
+        nama: 'Kain',
+        satuan: 'meter',
+        kategori: 'kain',
+      });
 
       expect(result).toEqual(mockMaterial);
       expect(prisma.material.create).toHaveBeenCalledWith({
@@ -113,7 +117,11 @@ describe('InventoryService (Unit)', () => {
       (prisma.material.findUnique as jest.Mock).mockResolvedValue(mockMaterial);
       (prisma.billOfMaterial.upsert as jest.Mock).mockResolvedValue(mockBom);
 
-      const result = await service.createBom({ productType: 'Kaos', materialId: 'mat-1', qtyPerUnit: 2.3 });
+      const result = await service.createBom({
+        productType: 'Kaos',
+        materialId: 'mat-1',
+        qtyPerUnit: 2.3,
+      });
 
       expect(result).toEqual(mockBom);
       expect(prisma.billOfMaterial.upsert).toHaveBeenCalledWith({
@@ -135,7 +143,13 @@ describe('InventoryService (Unit)', () => {
 
     it('should return BOM list if found', async () => {
       const mockBoms = [
-        { id: 'bom-1', productType: 'Kaos', materialId: 'mat-1', qtyPerUnit: 2.3, material: { nama: 'Kain' } },
+        {
+          id: 'bom-1',
+          productType: 'Kaos',
+          materialId: 'mat-1',
+          qtyPerUnit: 2.3,
+          material: { nama: 'Kain' },
+        },
       ];
       (prisma.billOfMaterial.findMany as jest.Mock).mockResolvedValue(mockBoms);
 
@@ -201,7 +215,11 @@ describe('InventoryService (Unit)', () => {
       ]);
       (prisma.stockReservation.create as jest.Mock).mockResolvedValue(mockReservation);
 
-      const result = await service.reserveStock({ orderId: 'order-1', materialId: 'mat-1', qty: 5 });
+      const result = await service.reserveStock({
+        orderId: 'order-1',
+        materialId: 'mat-1',
+        qty: 5,
+      });
 
       expect(result).toEqual(mockReservation);
       expect(prisma.stockBalance.update).toHaveBeenCalledWith({

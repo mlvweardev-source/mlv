@@ -153,7 +153,9 @@ export class InventoryService {
       }
 
       // 3. Buat reservasi
-      const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 15 * 60 * 1000); // 15 menit default
+      const expiresAt = dto.expiresAt
+        ? new Date(dto.expiresAt)
+        : new Date(Date.now() + 15 * 60 * 1000); // 15 menit default
       const reservation = await tx.stockReservation.create({
         data: {
           orderId,
@@ -219,7 +221,9 @@ export class InventoryService {
       }
 
       if (reservation.status !== 'ACTIVE') {
-        throw new BadRequestException(`Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`);
+        throw new BadRequestException(
+          `Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`,
+        );
       }
 
       // Lock row
@@ -298,7 +302,9 @@ export class InventoryService {
       }
 
       if (reservation.status !== 'ACTIVE') {
-        throw new BadRequestException(`Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`);
+        throw new BadRequestException(
+          `Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`,
+        );
       }
 
       // Lock row
@@ -417,12 +423,16 @@ export class InventoryService {
         newAvailable += qty;
       } else if (tipe === 'OUT') {
         if (available < qty) {
-          throw new BadRequestException(`Stok tidak mencukupi untuk pengeluaran. Tersedia: ${available}, Diminta: ${qty}`);
+          throw new BadRequestException(
+            `Stok tidak mencukupi untuk pengeluaran. Tersedia: ${available}, Diminta: ${qty}`,
+          );
         }
         newAvailable -= qty;
       } else if (tipe === 'RESERVE') {
         if (available - reserved < qty) {
-          throw new BadRequestException(`Stok tidak mencukupi untuk reservasi. Tersedia: ${available - reserved}, Diminta: ${qty}`);
+          throw new BadRequestException(
+            `Stok tidak mencukupi untuk reservasi. Tersedia: ${available - reserved}, Diminta: ${qty}`,
+          );
         }
         newReserved += qty;
       } else if (tipe === 'RELEASE') {
@@ -430,7 +440,9 @@ export class InventoryService {
       } else if (tipe === 'ADJUST') {
         newAvailable += qty;
         if (newAvailable < 0) {
-          throw new BadRequestException(`Penyesuaian stok akan mengakibatkan saldo negatif: ${newAvailable}`);
+          throw new BadRequestException(
+            `Penyesuaian stok akan mengakibatkan saldo negatif: ${newAvailable}`,
+          );
         }
       }
 
@@ -550,7 +562,9 @@ export class InventoryService {
 
       const newAvailable = available + qtyDelta;
       if (newAvailable < 0) {
-        throw new BadRequestException(`Penyesuaian stok akan mengakibatkan saldo negatif: ${newAvailable}`);
+        throw new BadRequestException(
+          `Penyesuaian stok akan mengakibatkan saldo negatif: ${newAvailable}`,
+        );
       }
 
       await tx.stockMovement.create({

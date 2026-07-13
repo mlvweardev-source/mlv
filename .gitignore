@@ -48,4 +48,5 @@ docker/redisdata/
 .parcel-cache/
 .svelte-kit/
 .docusaurus/
-
+# Next.js
+next-env.d.ts

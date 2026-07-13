@@ -24,6 +24,7 @@ export default tseslint.config(
       '**/out/**',
       '**/coverage/**',
       'packages/db/src/index.ts',
+      '**/next-env.d.ts',
       '.agents/**',
       'docs/**',
     ],
