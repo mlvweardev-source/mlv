@@ -13,12 +13,97 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Placeholder model untuk verifikasi prisma generate jalan.
-/// Model domain (Customer, Order, dst) akan ditambahkan mulai Fase 1.
-model HealthCheck {
-  id        Int      @id @default(autoincrement())
-  status    String
-  checkedAt DateTime @default(now()) @map("checked_at")
+// ==========================================
+// Identity & Access Domain
+// ==========================================
 
-  @@map("health_checks")
+/// User internal (Owner, Manajer Produksi, Tim Penjahit)
+/// Autentikasi via email + password (JWT), bukan Google.
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // bcrypt hash
+  nama      String
+  role      UserRole
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  MANAJER_PRODUKSI
+  TIM_PENJAHIT
+}
+
+/// OTP codes untuk autentikasi pelanggan via nomor HP.
+/// Kode disimpan sebagai hash, bukan plain text.
+model OtpCode {
+  id        String   @id @default(uuid())
+  phone     String
+  codeHash  String   @map("code_hash") // bcrypt hash of OTP code
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone, isUsed])
+  @@map("otp_codes")
+}
+
+// ==========================================
+// Customer Domain (§6.1)
+// ==========================================
+
+/// Pelanggan — identitas, profil, auth pelanggan
+model Customer {
+  id        String   @id @default(uuid())
+  nama      String
+  noHp      String?  @unique @map("no_hp")
+  email     String?  @unique
+  googleId  String?  @unique @map("google_id")
+  alamat    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  authMethods CustomerAuthMethod[]
+  reviews     Review[]
+
+  @@map("customers")
+}
+
+/// Metode autentikasi pelanggan (OTP HP / Google)
+model CustomerAuthMethod {
+  id         String   @id @default(uuid())
+  customerId String   @map("customer_id")
+  tipe       CustomerAuthType
+  identifier String   // nomor HP atau Google sub ID
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([tipe, identifier])
+  @@map("customer_auth_methods")
+}
+
+enum CustomerAuthType {
+  OTP_HP
+  GOOGLE
+}
+
+/// Review pelanggan setelah order selesai
+/// Relasi ke Order Domain akan ditambahkan di Fase 3.
+model Review {
+  id         String   @id @default(uuid())
+  orderId    String?  @map("order_id") // nullable sampai Order Domain ada (Fase 3)
+  customerId String   @map("customer_id")
+  rating     Int      // 1-5
+  komentar   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
 }

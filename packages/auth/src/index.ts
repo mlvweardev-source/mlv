@@ -1,4 +1,8 @@
-// @mlv/auth — Auth.js config, RBAC middleware, JWT utils
-// Placeholder: implementasi auth menyusul di Fase 1.
+// ==========================================
+// @mlv/auth — Public API
+// ==========================================
 
-export {};
+export { UserRole, ActorType } from './roles';
+export type { JwtPayload } from './roles';
+export { signJwt, verifyJwt } from './jwt';
+export { hashPassword, comparePassword, hashOtp, compareOtp } from './hash';
