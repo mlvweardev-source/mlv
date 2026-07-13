@@ -107,3 +107,156 @@ model Review {
 
   @@map("reviews")
 }
+
+// ==========================================
+// Inventory Domain (§6.4)
+// ==========================================
+
+/// Master data bahan
+model Material {
+  id        String   @id @default(uuid())
+  nama      String
+  satuan    String
+  kategori  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  billOfMaterials   BillOfMaterial[]
+  stockBalances     StockBalance[]
+  stockReservations StockReservation[]
+  stockMovements    StockMovement[]
+  purchaseOrders    PurchaseOrder[]
+  stockAdjustments  StockAdjustment[]
+
+  @@map("materials")
+}
+
+/// Daftar bahan baku yang dibutuhkan per unit produk (BOM)
+model BillOfMaterial {
+  id          String   @id @default(uuid())
+  productType String   @map("product_type")
+  materialId  String   @map("material_id")
+  qtyPerUnit  Float    @map("qty_per_unit")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([productType, materialId])
+  @@map("bill_of_materials")
+}
+
+/// Gudang penyimpanan stok
+model Warehouse {
+  id        String   @id @default(uuid())
+  nama      String
+  lokasi    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+
+  @@map("warehouses")
+}
+
+/// Cache / agregasi saldo stok saat ini
+model StockBalance {
+  materialId   String   @map("material_id")
+  warehouseId  String   @map("warehouse_id")
+  qtyAvailable Float    @default(0) @map("qty_available")
+  qtyReserved  Float    @default(0) @map("qty_reserved")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  material  Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@id([materialId, warehouseId])
+  @@map("stock_balances")
+}
+
+/// Reservasi stok sementara saat order
+model StockReservation {
+  id         String                 @id @default(uuid())
+  orderId    String                 @map("order_id") // plain string, no relation (DDD cross-domain)
+  materialId String                 @map("material_id")
+  qty        Float
+  status     StockReservationStatus @default(ACTIVE)
+  expiresAt  DateTime               @map("expires_at")
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("stock_reservations")
+}
+
+enum StockReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+/// Log mutasi stok - Sumber kebenaran tunggal
+model StockMovement {
+  id          String            @id @default(uuid())
+  materialId  String            @map("material_id")
+  warehouseId String            @map("warehouse_id")
+  tipe        StockMovementType
+  qty         Float
+  refType     String?           @map("ref_type")
+  refId       String?           @map("ref_id")
+  createdBy   String?           @map("created_by") // plain string, no relation (DDD cross-domain)
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  material  Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  RESERVE
+  RELEASE
+  ADJUST
+}
+
+/// Pembelian bahan baku
+model PurchaseOrder {
+  id         String              @id @default(uuid())
+  supplier   String
+  materialId String              @map("material_id")
+  qty        Float
+  totalBiaya Float               @map("total_biaya")
+  tglBeli    DateTime            @map("tgl_beli")
+  status     PurchaseOrderStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_orders")
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  COMPLETED
+}
+
+/// Penyesuaian stok opname
+model StockAdjustment {
+  id         String   @id @default(uuid())
+  materialId String   @map("material_id")
+  qtyDelta   Float    @map("qty_delta")
+  alasan     String
+  approvedBy String?  @map("approved_by") // plain string, no relation (DDD cross-domain)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("stock_adjustments")
+}
+

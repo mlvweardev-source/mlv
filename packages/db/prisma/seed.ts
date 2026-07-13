@@ -89,6 +89,134 @@ async function main() {
   });
   console.log(`  ✅ Customer: ${customer2.nama} (${customer2.email})`);
 
+  // ==========================================
+  // Inventory Domain Seeding (§6.4, §25.2)
+  // ==========================================
+
+  // --- Warehouse ---
+  console.log('🌱 Seeding warehouses...');
+  let warehouse = await prisma.warehouse.findFirst({
+    where: { nama: 'Gudang Utama' },
+  });
+  if (!warehouse) {
+    warehouse = await prisma.warehouse.create({
+      data: {
+        nama: 'Gudang Utama',
+        lokasi: 'Bandung',
+      },
+    });
+  }
+  console.log(`  ✅ Warehouse: ${warehouse.nama} (${warehouse.lokasi})`);
+
+  // --- Materials ---
+  console.log('🌱 Seeding materials...');
+  const materialsData = [
+    { nama: 'Kain', satuan: 'meter', kategori: 'kain' },
+    { nama: 'Label', satuan: 'pcs', kategori: 'aksesoris' },
+    { nama: 'Plastik Kemasan', satuan: 'pcs', kategori: 'aksesoris' },
+    { nama: 'Hangtag', satuan: 'pcs', kategori: 'aksesoris' },
+    { nama: 'Benang', satuan: 'cone', kategori: 'aksesoris' },
+  ];
+
+  const materials: Record<string, any> = {};
+  for (const m of materialsData) {
+    let material = await prisma.material.findFirst({
+      where: { nama: m.nama },
+    });
+    if (!material) {
+      material = await prisma.material.create({
+        data: m,
+      });
+    }
+    materials[m.nama] = material;
+    console.log(`  ✅ Material: ${material.nama} (${material.satuan})`);
+  }
+
+  // --- BOM for Kaos (§25.2) ---
+  console.log('🌱 Seeding BOM for Kaos (Contoh data - Kaos)...');
+  const bomData = [
+    { materialName: 'Kain', qtyPerUnit: 2.3 },
+    { materialName: 'Label', qtyPerUnit: 1.0 },
+    { materialName: 'Plastik Kemasan', qtyPerUnit: 1.0 },
+    { materialName: 'Hangtag', qtyPerUnit: 1.0 },
+    { materialName: 'Benang', qtyPerUnit: 0.3 },
+  ];
+
+  for (const b of bomData) {
+    const material = materials[b.materialName];
+    if (material) {
+      await prisma.billOfMaterial.upsert({
+        where: {
+          productType_materialId: {
+            productType: 'Kaos',
+            materialId: material.id,
+          },
+        },
+        update: {
+          qtyPerUnit: b.qtyPerUnit,
+        },
+        create: {
+          productType: 'Kaos',
+          materialId: material.id,
+          qtyPerUnit: b.qtyPerUnit,
+        },
+      });
+      console.log(`  ✅ BOM Kaos: ${b.materialName} -> ${b.qtyPerUnit} ${material.satuan}`);
+    }
+  }
+
+  // --- Initial Stock Balances & Movements ---
+  console.log('🌱 Seeding initial stock balances (tercatat lewat stock_movements)...');
+  const initialStock = [
+    { name: 'Kain', qty: 1000 },
+    { name: 'Label', qty: 5000 },
+    { name: 'Plastik Kemasan', qty: 5000 },
+    { name: 'Hangtag', qty: 5000 },
+    { name: 'Benang', qty: 200 },
+  ];
+
+  for (const item of initialStock) {
+    const material = materials[item.name];
+    if (material) {
+      const balance = await prisma.stockBalance.findUnique({
+        where: {
+          materialId_warehouseId: {
+            materialId: material.id,
+            warehouseId: warehouse.id,
+          },
+        },
+      });
+
+      if (!balance) {
+        // Record movement (IN)
+        await prisma.stockMovement.create({
+          data: {
+            materialId: material.id,
+            warehouseId: warehouse.id,
+            tipe: 'IN',
+            qty: item.qty,
+            refType: 'initial_seed',
+            refId: 'seed',
+            createdBy: 'system',
+          },
+        });
+
+        // Create balance
+        await prisma.stockBalance.create({
+          data: {
+            materialId: material.id,
+            warehouseId: warehouse.id,
+            qtyAvailable: item.qty,
+            qtyReserved: 0,
+          },
+        });
+        console.log(`  ✅ Stock Balance: ${item.name} -> ${item.qty} ${material.satuan}`);
+      } else {
+        console.log(`  ℹ️ Stock Balance for ${item.name} already exists`);
+      }
+    }
+  }
+
   console.log('🎉 Seed selesai!');
 }
 

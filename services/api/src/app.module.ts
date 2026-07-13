@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { IdentityAccessModule } from './domains/identity-access/identity-access.module';
 import { CustomerModule } from './domains/customer/customer.module';
+import { InventoryModule } from './domains/inventory/inventory.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -16,6 +17,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     EventEmitterModule.forRoot(),
     IdentityAccessModule,
     CustomerModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [

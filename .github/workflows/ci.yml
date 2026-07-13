@@ -10,6 +10,21 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: mlv
+          POSTGRES_PASSWORD: mlv_secret
+          POSTGRES_DB: mlv
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mlv"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,12 +45,23 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @mlv/db db:generate
 
+      - name: Run Database Migrations
+        run: pnpm --filter @mlv/db exec prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
+
+      - name: Seed Database
+        run: pnpm --filter @mlv/db exec ts-node prisma/seed.ts
+        env:
+          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
+
       - name: Lint
         run: pnpm lint
 
       - name: Build
         run: pnpm build
 
-      # Test step — placeholder until domain logic exists
-      # - name: Test
-      #   run: pnpm test
+      - name: Test
+        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public

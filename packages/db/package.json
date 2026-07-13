@@ -19,8 +19,10 @@
     "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
+    "@mlv/auth": "workspace:*",
     "@types/node": "^22.0.0",
     "prisma": "^6.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
   }
 }
