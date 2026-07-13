@@ -10,6 +10,11 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
     services:
       postgres:
         image: postgres:18
@@ -55,13 +60,9 @@ jobs:
 
       - name: Run Database Migrations
         run: pnpm --filter @mlv/db exec prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
 
       - name: Seed Database
         run: pnpm --filter @mlv/db exec ts-node prisma/seed.ts
-        env:
-          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
 
       - name: Lint
         run: pnpm lint
@@ -71,7 +72,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-        env:
-          DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
