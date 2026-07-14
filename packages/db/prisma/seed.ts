@@ -360,6 +360,59 @@ async function main() {
     }
   }
 
+  // ==========================================
+  // Production Domain Seeding (§6.3, §25.1)
+  // ==========================================
+
+  // NOTE: Urutan task dasar sesuai §25.1:
+  // Cutting → Printing/Embroidery → Sewing → Finishing → Ironing → Packing
+  // Task Printing & Embroidery di-skip jika order tidak punya service sablon/bordir.
+  // Routing ini adalah asumsi awal yang bisa disesuaikan oleh Manajer Produksi nanti.
+
+  console.log('🌱 Seeding production routings...');
+
+  const routingsData = [
+    // Kaos: Full flow (bisa sablon)
+    {
+      productType: 'Kaos',
+      urutanTask: ['CUTTING', 'PRINTING', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+    },
+    // Kemeja: Tanpa printing/embroidery (asumsi untuk fase ini)
+    {
+      productType: 'Kemeja',
+      urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+    },
+    // Hoodie: Full flow dengan embroidery opsional
+    {
+      productType: 'Hoodie',
+      urutanTask: ['CUTTING', 'EMBROIDERY', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+    },
+    // Topi: Simple flow
+    {
+      productType: 'Topi',
+      urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'PACKING'],
+    },
+    // Tas: Simple flow
+    {
+      productType: 'Tas',
+      urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'PACKING'],
+    },
+  ];
+
+  for (const routing of routingsData) {
+    await prisma.productionRouting.upsert({
+      where: { productType: routing.productType },
+      update: {
+        urutanTask: routing.urutanTask,
+      },
+      create: {
+        productType: routing.productType,
+        urutanTask: routing.urutanTask,
+      },
+    });
+    console.log(`  ✅ Routing ${routing.productType}: ${routing.urutanTask.join(' → ')}`);
+  }
+
   console.log('🎉 Seed selesai!');
 }
 

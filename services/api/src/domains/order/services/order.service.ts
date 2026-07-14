@@ -501,6 +501,17 @@ export class OrderService {
     }
 
     // ==========================================
+    // Antrean: MENUNGGU_PEMBAYARAN_DP → ANTREAN
+    // Publish OrderConfirmed untuk trigger Production task generation
+    // ==========================================
+    if (
+      previousStatus === 'MENUNGGU_PEMBAYARAN_DP' &&
+      dto.status === 'ANTREAN'
+    ) {
+      return this.moveToAntrean(order, actor);
+    }
+
+    // ==========================================
     // Pembatalan
     // ==========================================
     if (dto.status === 'DIBATALKAN') {
@@ -698,6 +709,43 @@ export class OrderService {
   }
 
   /**
+   * Move order ke ANTREAN dan emit OrderConfirmed.
+   *
+   * §7.1: OrderConfirmed memicu Production Domain untuk generate tasks.
+   * §23: Kriteria selesai Fase 4.
+   */
+  private async moveToAntrean(
+    order: Awaited<ReturnType<typeof prisma.order.findUnique>> & { items: any[] },
+    actor: JwtPayload,
+  ): Promise<OrderResponseDto> {
+    // Update status ke ANTREAN
+    const updatedOrder = await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'ANTREAN' },
+    });
+
+    // Timeline event
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId: order.id,
+        tipeEvent: 'ANTREAN',
+        deskripsi: `Order masuk antrean produksi`,
+        actorId: actor.sub,
+      },
+    });
+
+    // Publish OrderConfirmed event — Production Domain akan trigger task generation
+    this.eventEmitter.emit(
+      OrderConfirmedEvent.eventName,
+      new OrderConfirmedEvent(order.id, order.orderNumber, order.customerId, new Date()),
+    );
+
+    this.logger.log(`Order ${order.orderNumber} moved to ANTREAN, OrderConfirmed published`);
+
+    return this.getOrderById(order.id, actor);
+  }
+
+  /**
    * Cancel order dan release semua stock reservations.
    */
   private async cancelOrder(
@@ -749,6 +797,118 @@ export class OrderService {
     );
 
     return this.getOrderById(order.id, actor);
+  }
+
+  // ==========================================
+  // Finance Domain Integration (called by FinanceService)
+  // All modifications go through OrderService to maintain DDD boundaries
+  // ==========================================
+
+  /**
+   * Override item price (from Finance approval - HARGA_KHUSUS)
+   */
+  async overrideItemPrice(orderItemId: string, newPriceNote: string): Promise<void> {
+    // Update base_price_snapshot with note stored in log
+    await prisma.orderItem.update({
+      where: { id: orderItemId },
+      data: { basePriceSnapshot: 0 }, // Price will be recalculated on next invoice
+    });
+
+    this.logger.log(`Item price override requested for ${orderItemId}: ${newPriceNote}`);
+  }
+
+  /**
+   * Apply discount (from Finance approval - DISKON)
+   */
+  async applyDiscount(orderId: string, discountNote: string): Promise<void> {
+    // Parse discount amount from note (format: "Rp 50000" or "10%")
+    let nominal = 0;
+    let percentage = 0;
+
+    if (discountNote.includes('%')) {
+      percentage = parseFloat(discountNote.replace(/[^0-9.]/g, ''));
+    } else {
+      nominal = parseFloat(discountNote.replace(/[^0-9]/g, ''));
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        discountNominal: nominal > 0 ? nominal : undefined,
+        discountPersen: percentage > 0 ? percentage : undefined,
+      },
+    });
+
+    // Timeline event
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId,
+        tipeEvent: 'DISKON_APPLIED',
+        deskripsi: `Diskon diterapkan. ${nominal > 0 ? `Rp ${nominal.toLocaleString()}` : `${percentage}%`}`,
+      },
+    });
+  }
+
+  /**
+   * Reissue invoice (from Finance approval - EDIT_INVOICE)
+   */
+  async reissueInvoice(invoiceId: string): Promise<void> {
+    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+    if (!invoice) return;
+
+    // Archive old invoice
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { status: 'CANCELLED' },
+    });
+
+    // Timeline event
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId: invoice.orderId,
+        tipeEvent: 'INVOICE_REISSUED',
+        deskripsi: `Invoice ${invoice.jenis} diarsipkan, invoice baru diterbitkan`,
+      },
+    });
+  }
+
+  /**
+   * Cancel order from Finance (for REFUND approval)
+   * This is a simpler version that doesn't need the full actor context
+   */
+  async cancelOrderByFinance(orderId: string, reason?: string): Promise<void> {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'DIBATALKAN' },
+    });
+
+    // Timeline event
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId,
+        tipeEvent: 'DIBATALKAN',
+        deskripsi: `Order dibatalkan via approval refund.${reason ? ` Alasan: ${reason}` : ''}`,
+      },
+    });
+  }
+
+  /**
+   * Release all stock reservations for an order (called by Finance for REFUND)
+   */
+  async releaseReservationsForOrder(orderId: string): Promise<number> {
+    const reservations = await prisma.stockReservation.findMany({
+      where: { orderId, status: 'ACTIVE' },
+    });
+
+    for (const res of reservations) {
+      try {
+        await this.inventoryService.releaseStock({ reservationId: res.id });
+      } catch (error) {
+        this.logger.error(`Failed to release reservation ${res.id}: ${error}`);
+      }
+    }
+
+    return reservations.length;
   }
 
   /**
@@ -895,6 +1055,37 @@ export class OrderService {
     });
 
     return timeline;
+  }
+
+  // ==========================================
+  // Cross-Domain: Add Timeline Event (DDD Boundary)
+  // ==========================================
+  // Production Domain memanggil method ini untuk mencatat event ke Order Domain.
+  // Production TIDAK BOLEH akses prisma.orderTimelineEvent.create() langsung.
+
+  /**
+   * Catat timeline event ke Order Domain.
+   * Dipanggil oleh domain lain (mis. Production) untuk mencatat event produksi.
+   *
+   * @param orderId - ID order terkait
+   * @param eventType - Tipe event (mis. 'TASK_SELESAI', 'PRODUKSI_SELESAI')
+   * @param description - Deskripsi event
+   * @param actorId - ID user yang memicu (opsional)
+   */
+  async addTimelineEvent(
+    orderId: string,
+    eventType: string,
+    description: string,
+    actorId?: string,
+  ): Promise<void> {
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId,
+        tipeEvent: eventType,
+        deskripsi: description,
+        actorId,
+      },
+    });
   }
 
   // ==========================================

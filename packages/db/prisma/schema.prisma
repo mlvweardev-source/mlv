@@ -139,11 +139,17 @@ model Order {
   customerId   String      @map("customer_id")
   status       OrderStatus @default(DRAFT)
   deadline     DateTime?
+  discountNominal Float?   @map("discount_nominal")
+  discountPersen    Float?   @map("discount_persen")
+  discountApprovedBy String? @map("discount_approved_by")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
   items        OrderItem[]
   timeline     OrderTimelineEvent[]
+  payments     Payment[]
+  invoices     Invoice[]
+  approvals    Approval[]
 
   @@map("orders")
 }
@@ -162,6 +168,7 @@ model OrderItem {
   designs          OrderDesign[]
   materials        OrderMaterial[]
   services         OrderService[]
+  productionTasks  ProductionTask[]
 
   @@map("order_items")
 }
@@ -391,5 +398,174 @@ model StockAdjustment {
   material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("stock_adjustments")
+}
+
+// ==========================================
+// Finance Domain (§6.5)
+// ==========================================
+
+/// Payment record — DP atau Pelunasan
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @map("order_id")
+  jenis           PaymentType   // DP atau PELUNASAN
+  metode          String        // midtrans, transfer, cash, dll
+  jumlah          Float
+  status          PaymentStatus @default(PENDING)
+  midtransOrderId String?       @map("midtrans_order_id")
+  midtransTransactionId String? @map("midtrans_transaction_id")
+  webhookEventId  String?       @unique @map("webhook_event_id") // Idempotency
+  verifiedAt      DateTime?     @map("verified_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+enum PaymentType {
+  DP
+  PELUNASAN
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+/// Invoice untuk DP dan Pelunasan
+model Invoice {
+  id          String        @id @default(uuid())
+  orderId     String        @map("order_id")
+  jenis       InvoiceType   // DP atau PELUNASAN
+  jumlah      Float
+  status      InvoiceStatus @default(DRAFT)
+  pdfUrl      String?       @map("pdf_url")
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+enum InvoiceType {
+  DP
+  PELUNASAN
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+/// Pembagian hasil manual (Owner input)
+model ProfitSharing {
+  id          String   @id @default(uuid())
+  orderId     String?  @map("order_id") // nullable untuk bagi hasil periodik
+  periode     String?  // YYYY-MM untuk bagi hasil periodik
+  pihak       String   // nama pihak (owner, manager, penjahit)
+  persentase  Float    // 0-100
+  nominal     Float?
+  catatan     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("profit_sharing")
+}
+
+/// Approval workflow untuk harga khusus/diskon/edit invoice/refund
+model Approval {
+  id          String          @id @default(uuid())
+  tipe        ApprovalType
+  refId       String?         @map("ref_id") // ID referensi (mis. order_id, invoice_id)
+  orderId     String?        @map("order_id") // Order terkait
+  requestedBy String          @map("requested_by")
+  status      ApprovalStatus  @default(PENDING)
+  approvedBy  String?       @map("approved_by")
+  catatan     String?
+  alasan      String?         // Alasan approval/rejection
+  decidedAt   DateTime?     @map("decided_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  order       Order?         @relation(fields: [orderId], references: [id])
+
+  @@map("approvals")
+}
+
+enum ApprovalType {
+  HARGA_KHUSUS
+  DISKON
+  EDIT_INVOICE
+  REFUND
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==========================================
+// Production Domain (§6.3)
+// ==========================================
+
+/// Routing proses produksi per jenis produk (ERP: Routing)
+/// Template urutan task. Saat OrderConfirmed, task di-instantiate ke production_tasks.
+/// NOTE: Ini adalah template tetap, tidak punya relasi langsung ke ProductionTask.
+/// Task dibuat berdasarkan array urutanTask, bukan FK.
+model ProductionRouting {
+  id          String   @id @default(uuid())
+  productType String   @unique @map("product_type")
+ urutanTask  String[] @map("urutan_task") // Array task_type: ["Cutting","Printing","Sewing",...]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("production_routings")
+}
+
+/// Task produksi granular per order item
+/// Dibuat otomatis saat OrderConfirmed, dipicu oleh TaskCompleted sebelumnya
+model ProductionTask {
+  id           String        @id @default(uuid())
+  orderItemId  String        @map("order_item_id")
+  taskType     TaskType
+  sequence     Int           // Urutan dalam routing (1 = pertama, 2 = kedua, dst.)
+  status       TaskStatus    @default(DITERIMA)
+  assignedTo   String?       @map("assigned_to") // FK ke User.id — plain string (DDD cross-domain)
+  startedAt    DateTime?     @map("started_at")
+  completedAt  DateTime?     @map("completed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  orderItem    OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("production_tasks")
+}
+
+enum TaskType {
+  CUTTING
+  PRINTING
+  EMBROIDERY
+  SEWING
+  FINISHING
+  IRONING
+  PACKING
+}
+
+enum TaskStatus {
+  DITERIMA      // Siap dikerjakan (task pertama di urutan)
+  MENUNGGU     // Menunggu task sebelumnya selesai
+  SEDANG_DILAKSANAKAN
+  SELESAI
 }
 

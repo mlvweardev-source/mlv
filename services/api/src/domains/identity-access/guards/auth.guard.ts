@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   UnauthorizedException,
   SetMetadata,
+  createParamDecorator,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -33,6 +34,17 @@ export const AllowCustomer = () => SetMetadata(ALLOW_CUSTOMER_KEY, true);
  */
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+
+/**
+ * Decorator: Ambil user payload dari request.
+ * Contoh: @GetUser() user: JwtPayload
+ */
+export const GetUser = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): JwtPayload => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user;
+  },
+);
 
 // ==========================================
 // Auth Guard (JWT Verification + RBAC)
