@@ -15,6 +15,13 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "db:seed": {
+      "dependsOn": ["^build", "db:migrate"],
+      "cache": false
+    },
+    "db:migrate": {
+      "dependsOn": ["^build"]
     }
   }
 }

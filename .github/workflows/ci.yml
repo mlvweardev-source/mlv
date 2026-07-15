@@ -58,17 +58,15 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @mlv/db db:generate
 
-      - name: Run Database Migrations
-        run: pnpm --filter @mlv/db exec prisma migrate deploy
+      # Turbo pipeline: build → migrate → seed (urutan otomatis dari dependency graph)
+      - name: Build (turbo)
+        run: pnpm turbo build
 
-      - name: Seed Database
-        run: pnpm --filter @mlv/db exec ts-node prisma/seed.ts
+      - name: Migrate & Seed Database (turbo)
+        run: pnpm turbo db:migrate db:seed
 
       - name: Lint
         run: pnpm lint
 
-      - name: Build
-        run: pnpm build
-
       - name: Test
-        run: pnpm test
+        run: pnpm turbo test
