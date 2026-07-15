@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -42,6 +44,9 @@ export class ProductionService {
 
   constructor(
     private readonly eventBus: EventBusService,
+    // forwardRef (Fase 9): circular dependency Order ↔ Production —
+    // Order butuh getOrderIdsForAssignee, Production butuh addTimelineEvent.
+    @Inject(forwardRef(() => OrderService))
     private readonly orderService: OrderService,
     private readonly customerService: CustomerService,
   ) {}
@@ -324,6 +329,24 @@ export class ProductionService {
         order: task.orderItem.order,
       },
     };
+  }
+
+  // ==========================================
+  // Cross-Domain: Order IDs per Assignee (DDD Boundary §4.1)
+  // ==========================================
+  // Order Domain memanggil method ini untuk filter "order miliknya"
+  // bagi Tim Penjahit (§5.1) — Order TIDAK BOLEH query production_tasks langsung.
+
+  /**
+   * Ambil daftar order ID yang punya task ditugaskan ke user tertentu.
+   * Dipakai Order Domain untuk view terbatas Tim Penjahit.
+   */
+  async getOrderIdsForAssignee(userId: string): Promise<string[]> {
+    const tasks = await prisma.productionTask.findMany({
+      where: { assignedTo: userId },
+      select: { orderItem: { select: { orderId: true } } },
+    });
+    return [...new Set(tasks.map((t) => t.orderItem.orderId))];
   }
 
   // ==========================================

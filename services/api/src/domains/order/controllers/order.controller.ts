@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   Req,
   UseGuards,
   UseInterceptors,
@@ -21,6 +22,7 @@ import {
   AddOrderItemDto,
   UpdateOrderStatusDto,
   AddOrderServiceDto,
+  FindOrdersQueryDto,
 } from '../dto/order.dto';
 import { AuthGuard, Roles, AllowCustomer } from '../../identity-access/guards/auth.guard';
 import { UserRole } from '@mlv/auth';
@@ -101,21 +103,23 @@ export class OrderController {
   }
 
   /**
-   * GET /orders — Daftar order.
+   * GET /orders — Daftar order dengan filter status & pencarian.
    * Staff: semua. Customer: miliknya sendiri.
+   * Tim Penjahit: view terbatas — hanya order dengan task miliknya (§5.1).
    */
   @Get()
-  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
   @AllowCustomer()
-  async findOrders(@Req() req: { user: JwtPayload }) {
-    return this.orderService.findOrders(req.user);
+  async findOrders(@Query() query: FindOrdersQueryDto, @Req() req: { user: JwtPayload }) {
+    return this.orderService.findOrders(req.user, query);
   }
 
   /**
    * GET /orders/:id — Detail order.
+   * Tim Penjahit: hanya order dengan task miliknya (§5.1).
    */
   @Get(':id')
-  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
   @AllowCustomer()
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: JwtPayload }) {
     return this.orderService.getOrderById(id, req.user);
@@ -228,9 +232,10 @@ export class OrderController {
 
   /**
    * GET /orders/:id/timeline — Timeline order.
+   * Tim Penjahit: hanya order dengan task miliknya (§5.1).
    */
   @Get(':id/timeline')
-  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
   @AllowCustomer()
   async getTimeline(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: JwtPayload }) {
     return this.orderService.getTimeline(id, req.user);

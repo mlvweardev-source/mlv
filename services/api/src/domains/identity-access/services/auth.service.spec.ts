@@ -11,6 +11,12 @@ jest.mock('@mlv/db', () => ({
     user: {
       findUnique: jest.fn(),
     },
+    refreshToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
     otpCode: {
       count: jest.fn(),
       create: jest.fn(),
@@ -107,10 +113,12 @@ describe('AuthService', () => {
       };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (comparePassword as jest.Mock).mockResolvedValue(true);
+      (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
 
       const result = await service.loginStaff('staff@mlv.dev', 'correctpassword');
 
       expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
       expect(result.user).toEqual({
         id: mockUser.id,
         email: mockUser.email,
@@ -118,11 +126,116 @@ describe('AuthService', () => {
         role: mockUser.role,
       });
 
+      // Refresh token disimpan sebagai HASH, bukan plain text
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
+      const createArg = (prisma.refreshToken.create as jest.Mock).mock.calls[0][0];
+      expect(createArg.data.tokenHash).not.toBe(result.refreshToken);
+      expect(createArg.data.userId).toBe(mockUser.id);
+
       // Verify the generated token payload
       const decoded = verifyJwt(result.accessToken, 'super-secret-key-at-least-32-chars-long');
       expect(decoded.sub).toBe(mockUser.id);
       expect(decoded.actorType).toBe(ActorType.USER);
       expect(decoded.role).toBe(mockUser.role);
+    });
+  });
+
+  describe('refreshStaffTokens', () => {
+    const mockUser = {
+      id: 'user-id',
+      email: 'staff@mlv.dev',
+      nama: 'Staff User',
+      role: UserRole.OWNER,
+      isActive: true,
+    };
+
+    it('should throw UnauthorizedException if refresh token is missing', async () => {
+      await expect(service.refreshStaffTokens(undefined)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException if refresh token is unknown', async () => {
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.refreshStaffTokens('unknown-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should revoke ALL user sessions when a revoked token is reused', async () => {
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        revokedAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000000),
+        user: mockUser,
+      });
+
+      await expect(service.refreshStaffTokens('stolen-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: mockUser.id, revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+
+    it('should throw UnauthorizedException if refresh token is expired', async () => {
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - 1000),
+        user: mockUser,
+      });
+
+      await expect(service.refreshStaffTokens('expired-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should rotate refresh token and issue new tokens on success', async () => {
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt-1',
+        userId: mockUser.id,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 1000000),
+        user: mockUser,
+      });
+      (prisma.refreshToken.update as jest.Mock).mockResolvedValue({});
+      (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+
+      const result = await service.refreshStaffTokens('valid-token');
+
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      // Token lama di-revoke (rotasi)
+      expect(prisma.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'rt-1' },
+        data: { revokedAt: expect.any(Date) },
+      });
+      // Token baru dibuat
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('logoutStaff', () => {
+    it('should revoke the refresh token in DB', async () => {
+      (prisma.refreshToken.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const result = await service.logoutStaff('some-token');
+
+      expect(result).toEqual({ message: 'Logout berhasil' });
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { tokenHash: expect.any(String), revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+
+    it('should succeed silently without a refresh token', async () => {
+      const result = await service.logoutStaff(undefined);
+
+      expect(result).toEqual({ message: 'Logout berhasil' });
+      expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
     });
   });
 

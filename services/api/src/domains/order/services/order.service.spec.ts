@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { ProductionService } from '../../production/services/production.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
@@ -53,6 +54,11 @@ const mockInventoryService = {
   releaseStock: jest.fn(),
 };
 
+// Mock ProductionService (Fase 9: view terbatas Tim Penjahit)
+const mockProductionService = {
+  getOrderIdsForAssignee: jest.fn().mockResolvedValue([]),
+};
+
 describe('OrderService', () => {
   let service: OrderService;
   let mockEventBus: { publish: jest.Mock };
@@ -88,6 +94,10 @@ describe('OrderService', () => {
         {
           provide: InventoryService,
           useValue: mockInventoryService,
+        },
+        {
+          provide: ProductionService,
+          useValue: mockProductionService,
         },
       ],
     }).compile();

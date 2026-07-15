@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Inject,
+  forwardRef,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -7,11 +9,12 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@mlv/db';
 import type { Prisma } from '@mlv/db';
-import { ActorType } from '@mlv/auth';
+import { ActorType, UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { ProductionService } from '../../production/services/production.service';
 import { ReserveStockDto } from '../../inventory/dto/inventory.dto';
 import {
   CreateOrderDto,
@@ -19,6 +22,7 @@ import {
   UpdateOrderStatusDto,
   AddOrderServiceDto,
   AddOrderItemResponseDto,
+  FindOrdersQueryDto,
   OrderResponseDto,
   OrderListResponseDto,
   OrderItemResponseDto,
@@ -56,6 +60,8 @@ export class OrderService {
   constructor(
     private readonly eventBus: EventBusService,
     private readonly inventoryService: InventoryService,
+    @Inject(forwardRef(() => ProductionService))
+    private readonly productionService: ProductionService,
   ) {}
 
   // ==========================================
@@ -112,11 +118,27 @@ export class OrderService {
   }
 
   /**
-   * GET /orders — Daftar order.
-   * Staff: lihat semua. Pelanggan: lihat miliknya sendiri.
+   * GET /orders — Daftar order dengan filter status & pencarian order number.
+   * Staff (Owner/Manajer): lihat semua. Pelanggan: lihat miliknya sendiri.
+   * Tim Penjahit (§5.1 view terbatas): hanya order yang punya task
+   * ditugaskan kepadanya — daftar order ID diambil dari Production Domain
+   * via ProductionService (DDD boundary §4.1).
    */
-  async findOrders(actor: JwtPayload): Promise<OrderListResponseDto[]> {
-    const whereClause = actor.actorType === ActorType.CUSTOMER ? { customerId: actor.sub } : {};
+  async findOrders(actor: JwtPayload, query?: FindOrdersQueryDto): Promise<OrderListResponseDto[]> {
+    const whereClause: Prisma.OrderWhereInput =
+      actor.actorType === ActorType.CUSTOMER ? { customerId: actor.sub } : {};
+
+    if (actor.actorType === ActorType.USER && actor.role === UserRole.TIM_PENJAHIT) {
+      const orderIds = await this.productionService.getOrderIdsForAssignee(actor.sub);
+      whereClause.id = { in: orderIds };
+    }
+
+    if (query?.status) {
+      whereClause.status = query.status;
+    }
+    if (query?.search) {
+      whereClause.orderNumber = { contains: query.search, mode: 'insensitive' };
+    }
 
     const orders = await prisma.order.findMany({
       where: whereClause,
@@ -168,6 +190,7 @@ export class OrderService {
     if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
+    await this.assertPenjahitCanViewOrder(order.id, actor);
 
     // Fetch material names for each order material
     const materialIds = [
@@ -1236,6 +1259,7 @@ export class OrderService {
     if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
+    await this.assertPenjahitCanViewOrder(orderId, actor);
 
     const timeline = await prisma.orderTimelineEvent.findMany({
       where: { orderId },
@@ -1243,6 +1267,20 @@ export class OrderService {
     });
 
     return timeline;
+  }
+
+  /**
+   * §5.1 view terbatas: Tim Penjahit hanya boleh membuka order yang punya
+   * task ditugaskan kepadanya. Cek via Production Domain (DDD boundary).
+   */
+  private async assertPenjahitCanViewOrder(orderId: string, actor: JwtPayload): Promise<void> {
+    if (actor.actorType !== ActorType.USER || actor.role !== UserRole.TIM_PENJAHIT) {
+      return;
+    }
+    const orderIds = await this.productionService.getOrderIdsForAssignee(actor.sub);
+    if (!orderIds.includes(orderId)) {
+      throw new ForbiddenException('Anda hanya bisa melihat order dengan task milik Anda');
+    }
   }
 
   // ==========================================

@@ -118,11 +118,17 @@ export class AuthGuard implements CanActivate {
     throw new UnauthorizedException('Akses ditolak');
   }
 
-  private extractToken(request: { headers: { authorization?: string } }): string | null {
+  private extractToken(request: {
+    headers: { authorization?: string };
+    cookies?: Record<string, string>;
+  }): string | null {
     const authorization = request.headers.authorization;
-    if (!authorization) return null;
+    if (authorization) {
+      const [type, token] = authorization.split(' ');
+      if (type === 'Bearer' && token) return token;
+    }
 
-    const [type, token] = authorization.split(' ');
-    return type === 'Bearer' ? token : null;
+    // Fase 9: staff portal mengirim access token via httpOnly cookie
+    return request.cookies?.['mlv_access_token'] ?? null;
   }
 }

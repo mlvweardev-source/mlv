@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrderService } from './services/order.service';
 import { InventoryService } from '../inventory/services/inventory.service';
+import { ProductionService } from '../production/services/production.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
 import { EVENT_NAMES } from '@mlv/types';
 
@@ -51,6 +52,7 @@ describe('OrderService - Event Consumer Idempotency (§16)', () => {
         OrderService,
         { provide: EventBusService, useValue: mockEventBus },
         { provide: InventoryService, useValue: {} },
+        { provide: ProductionService, useValue: {} },
       ],
     }).compile();
 

@@ -122,6 +122,21 @@ export class UpdateOrderStatusDto {
 }
 
 // ==========================================
+// List Orders Query (Fase 9 — portal internal)
+// ==========================================
+
+export class FindOrdersQueryDto {
+  @IsOptional()
+  @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  /** Cari berdasarkan order number (partial match, case-insensitive). */
+  @IsOptional()
+  @IsString()
+  search?: string;
+}
+
+// ==========================================
 // Response DTOs
 // ==========================================
 

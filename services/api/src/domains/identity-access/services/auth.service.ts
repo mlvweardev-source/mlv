@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash, randomBytes } from 'crypto';
 import { prisma } from '@mlv/db';
 import {
   signJwt,
@@ -12,21 +13,40 @@ import {
 } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 
+/** Hasil login/refresh staff — dipakai controller untuk set httpOnly cookies. */
+export interface StaffAuthResult {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenMaxAgeMs: number;
+  refreshTokenMaxAgeMs: number;
+  user: {
+    id: string;
+    email: string;
+    nama: string;
+    role: string;
+  };
+}
+
 @Injectable()
 export class AuthService {
   private readonly jwtSecret: string;
   private readonly jwtExpiresIn: string;
+  private readonly accessExpiresIn: string;
+  private readonly refreshExpiresDays: number;
 
   constructor(private readonly config: ConfigService) {
     this.jwtSecret = this.config.getOrThrow<string>('JWT_SECRET');
     this.jwtExpiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');
+    // Fase 9: staff access token pendek (~1 jam) + refresh token (~7 hari).
+    this.accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN', '1h');
+    this.refreshExpiresDays = parseInt(this.config.get<string>('REFRESH_TOKEN_EXPIRES_DAYS', '7'));
   }
 
   // =====================
   // Internal Staff Login
   // =====================
 
-  async loginStaff(email: string, password: string) {
+  async loginStaff(email: string, password: string): Promise<StaffAuthResult> {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.isActive) {
@@ -38,6 +58,75 @@ export class AuthService {
       throw new UnauthorizedException('Email atau password salah');
     }
 
+    return this.issueStaffTokens(user);
+  }
+
+  // ==========================================
+  // Refresh Token Flow (Fase 9 — §5 keamanan)
+  // Token disimpan sebagai hash SHA-256 di DB agar leak DB tidak
+  // langsung membocorkan token yang masih berlaku. Refresh = ROTASI:
+  // token lama di-revoke, token baru diterbitkan.
+  // ==========================================
+
+  async refreshStaffTokens(refreshToken: string | undefined): Promise<StaffAuthResult> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token tidak ditemukan');
+    }
+
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const record = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!record) {
+      throw new UnauthorizedException('Refresh token tidak valid');
+    }
+
+    if (record.revokedAt) {
+      // Reuse token yang sudah dirotasi/di-revoke = indikasi pencurian token.
+      // Revoke SEMUA sesi user tersebut (fail-closed).
+      await prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token sudah tidak berlaku');
+    }
+
+    if (record.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token sudah kadaluarsa');
+    }
+
+    if (!record.user.isActive) {
+      throw new UnauthorizedException('User sudah tidak aktif');
+    }
+
+    // Rotasi: revoke token lama, terbitkan pasangan token baru
+    await prisma.refreshToken.update({
+      where: { id: record.id },
+      data: { revokedAt: new Date() },
+    });
+
+    return this.issueStaffTokens(record.user);
+  }
+
+  async logoutStaff(refreshToken: string | undefined): Promise<{ message: string }> {
+    if (refreshToken) {
+      const tokenHash = this.hashRefreshToken(refreshToken);
+      await prisma.refreshToken.updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { message: 'Logout berhasil' };
+  }
+
+  private async issueStaffTokens(user: {
+    id: string;
+    email: string;
+    nama: string;
+    role: string;
+  }): Promise<StaffAuthResult> {
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       sub: user.id,
       actorType: ActorType.USER,
@@ -45,10 +134,24 @@ export class AuthService {
       email: user.email,
     };
 
-    const token = signJwt(payload, this.jwtSecret, this.jwtExpiresIn);
+    const accessToken = signJwt(payload, this.jwtSecret, this.accessExpiresIn);
+
+    const refreshToken = randomBytes(48).toString('base64url');
+    const refreshTokenMaxAgeMs = this.refreshExpiresDays * 24 * 60 * 60 * 1000;
+
+    await prisma.refreshToken.create({
+      data: {
+        tokenHash: this.hashRefreshToken(refreshToken),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + refreshTokenMaxAgeMs),
+      },
+    });
 
     return {
-      accessToken: token,
+      accessToken,
+      refreshToken,
+      accessTokenMaxAgeMs: this.parseExpiresInMs(this.accessExpiresIn),
+      refreshTokenMaxAgeMs,
       user: {
         id: user.id,
         email: user.email,
@@ -56,6 +159,19 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  /** Parse durasi format jsonwebtoken ('1h', '30m', '7d') ke milidetik. */
+  private parseExpiresInMs(expiresIn: string): number {
+    const match = /^(\d+)([smhd])$/.exec(expiresIn);
+    if (!match) return 60 * 60 * 1000; // fallback 1 jam
+    const value = parseInt(match[1]);
+    const unit = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 }[match[2]]!;
+    return value * unit;
   }
 
   // =====================

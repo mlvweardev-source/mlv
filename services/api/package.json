@@ -13,6 +13,7 @@
     "test:cov": "jest --coverage",
     "demo:cascade": "ts-node scripts/demo-cascade.ts",
     "demo:shipping": "ts-node scripts/demo-shipping.ts",
+    "demo:auth-portal": "ts-node scripts/demo-auth-portal.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "bullmq": "^5.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
+    "cookie-parser": "^1.4.7",
     "multer": "^1.4.5-lts.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
@@ -38,6 +40,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.0",
     "@types/multer": "^1.4.11",
