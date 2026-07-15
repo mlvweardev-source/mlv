@@ -9,6 +9,7 @@ import { InventoryModule } from './domains/inventory/inventory.module';
 import { OrderModule } from './domains/order/order.module';
 import { ProductionModule } from './domains/production/production.module';
 import { FinanceModule } from './domains/finance/finance.module';
+import { ShippingModule } from './domains/shipping/shipping.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -26,6 +27,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     OrderModule,
     ProductionModule,
     FinanceModule,
+    ShippingModule, // Fase 7: Shipping Domain
   ],
   controllers: [AppController],
   providers: [

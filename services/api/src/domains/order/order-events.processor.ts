@@ -37,6 +37,14 @@ export class OrderEventsProcessor extends WorkerHost {
         await this.orderService.handleProductionCompleted(job.data);
         break;
 
+      case EVENT_NAMES.ShipmentCreated:
+        await this.orderService.handleShipmentCreated(job.data);
+        break;
+
+      case EVENT_NAMES.ShipmentDelivered:
+        await this.orderService.handleShipmentDelivered(job.data);
+        break;
+
       case EVENT_NAMES.StockReservationFailed:
         // Publisher belum ada (§4) — placeholder untuk fase berikutnya
         this.logger.warn(`StockReservationFailed diterima tapi belum ada handler: ${job.id}`);

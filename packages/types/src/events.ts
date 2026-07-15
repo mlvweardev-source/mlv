@@ -58,6 +58,10 @@ export const EVENT_NAMES = {
   InvoiceIssued: 'invoice.issued',
   ApprovalRequested: 'approval.requested',
   ApprovalDecided: 'approval.decided',
+
+  // Shipping Domain
+  ShipmentCreated: 'shipment.created',
+  ShipmentDelivered: 'shipment.delivered',
 } as const;
 
 export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
@@ -112,6 +116,10 @@ export const EVENT_ROUTING: Record<EventName, QueueName[]> = {
   [EVENT_NAMES.InvoiceIssued]: [QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.ApprovalRequested]: [QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.ApprovalDecided]: [QUEUES.NOTIFICATION_EVENTS],
+
+  // Shipping
+  [EVENT_NAMES.ShipmentCreated]: [QUEUES.ORDER_EVENTS, QUEUES.NOTIFICATION_EVENTS],
+  [EVENT_NAMES.ShipmentDelivered]: [QUEUES.ORDER_EVENTS, QUEUES.NOTIFICATION_EVENTS],
 };
 
 /**

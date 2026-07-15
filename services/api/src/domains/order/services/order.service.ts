@@ -892,6 +892,98 @@ export class OrderService {
     this.logger.log(`Order ${order.orderNumber} transitioned to MENUNGGU_PELUNASAN`);
   }
 
+  /**
+   * Konsumen ShipmentCreated (§7.1): transisi order → DIKIRIM.
+   *
+   * Trigger: Staff membuat shipment setelah barang handed over ke kurir.
+   * Efek: Order status → DIKIRIM (sesuai §25.1 alur order).
+   *
+   * IDEMPOTEN: skip jika status sudah DIKIRIM atau lebih lanjut (LUNAS→DIKIRIM).
+   */
+  async handleShipmentCreated(event: {
+    shipmentId: string;
+    orderId: string;
+    orderNumber: string;
+    kurir: string;
+    trackingToken: string;
+    createdAt: Date;
+  }): Promise<void> {
+    const order = await prisma.order.findUnique({
+      where: { id: event.orderId },
+    });
+
+    if (!order) {
+      this.logger.warn(`Order not found: ${event.orderId}`);
+      return;
+    }
+
+    // Idempotency: skip jika sudah DIKIRIM
+    if (order.status === 'DIKIRIM') {
+      this.logger.log(
+        `ShipmentCreated for order ${order.orderNumber} skipped — status sudah DIKIRIM (idempotent no-op)`,
+      );
+      return;
+    }
+
+    // Validasi status: hanya LUNAS yang boleh ditransisi ke DIKIRIM
+    if (order.status !== 'LUNAS') {
+      this.logger.warn(
+        `ShipmentCreated for order ${order.orderNumber} skipped — status ${order.status} (hanya LUNAS yang boleh transit ke DIKIRIM)`,
+      );
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: event.orderId },
+      data: { status: 'DIKIRIM' },
+    });
+
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId: event.orderId,
+        tipeEvent: 'DIKIRIM',
+        deskripsi: `Order dikirim via ${event.kurir}. Tracking token: ${event.trackingToken}`,
+      },
+    });
+
+    this.logger.log(`Order ${order.orderNumber} transitioned to DIKIRIM (shipment: ${event.shipmentId})`);
+  }
+
+  /**
+   * Konsumen ShipmentDelivered (§7.1): catat event di timeline.
+   *
+   * Trigger: Staff update shipment status → DITERIMA.
+   * Efek: Timeline event dicatat (tidak ada transisi status Order karena DIKIRIM sudah final).
+   *
+   * IDEMPOTEN: tidak ada efek jika sudah delivered.
+   */
+  async handleShipmentDelivered(event: {
+    shipmentId: string;
+    orderId: string;
+    orderNumber: string;
+    deliveredAt: Date;
+  }): Promise<void> {
+    const order = await prisma.order.findUnique({
+      where: { id: event.orderId },
+    });
+
+    if (!order) {
+      this.logger.warn(`Order not found: ${event.orderId}`);
+      return;
+    }
+
+    // Catat di timeline (tidak ada perubahan status Order)
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId: event.orderId,
+        tipeEvent: 'DITERIMA',
+        deskripsi: `Barang diterima pelanggan pada ${new Date(event.deliveredAt).toLocaleString('id-ID')}`,
+      },
+    });
+
+    this.logger.log(`Order ${order.orderNumber} marked as delivered`);
+  }
+
   // ==========================================
   // Finance Domain Integration (called by FinanceService)
   // All modifications go through OrderService to maintain DDD boundaries
@@ -1180,6 +1272,50 @@ export class OrderService {
         actorId,
       },
     });
+  }
+
+  // ==========================================
+  // Cross-Domain: Get Order Data (DDD Boundary)
+  // ==========================================
+  // Shipping Domain memanggil method ini untuk validasi order.
+  // Shipping TIDAK BOLEH query prisma.order.findUnique() langsung.
+
+  /**
+   * Ambil data order minimal untuk validasi domain lain.
+   * Mengembalikan data internal, BUKAN DTO response.
+   *
+   * @param orderId - ID order
+   * @returns Data order { id, status, orderNumber, customerId, alamat } atau null jika tidak ada
+   */
+  async getOrderByIdInternal(
+    orderId: string,
+  ): Promise<{ id: string; status: string; orderNumber: string; customerId: string; alamat: string | null } | null> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        orderNumber: true,
+        customerId: true,
+        customer: {
+          select: {
+            alamat: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return null;
+    }
+
+    return {
+      id: order.id,
+      status: order.status,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId,
+      alamat: order.customer.alamat,
+    };
   }
 
   // ==========================================

@@ -532,4 +532,147 @@ describe('OrderService', () => {
       );
     });
   });
+
+  describe('handleShipmentCreated', () => {
+    const shipmentEvent = {
+      shipmentId: 'ship-1',
+      orderId: 'order-1',
+      orderNumber: 'MLV-20260715-0001',
+      kurir: 'JNE',
+      trackingToken: 'token-abc',
+      createdAt: new Date(),
+    };
+
+    it('should transition order to DIKIRIM when status is LUNAS', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260715-0001',
+        status: 'LUNAS',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+      (prisma.order.update as jest.Mock).mockResolvedValue({ ...mockOrder, status: 'DIKIRIM' });
+      (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-1' },
+        data: { status: 'DIKIRIM' },
+      });
+      expect(prisma.orderTimelineEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          tipeEvent: 'DIKIRIM',
+          deskripsi: expect.stringContaining('JNE'),
+        }),
+      });
+    });
+
+    it('should skip if order not found', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip (idempotent) if order already DIKIRIM', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260715-0001',
+        status: 'DIKIRIM',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip if order status is not LUNAS', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260715-0001',
+        status: 'MENUNGGU_PELUNASAN',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleShipmentDelivered', () => {
+    const deliveredEvent = {
+      shipmentId: 'ship-1',
+      orderId: 'order-1',
+      orderNumber: 'MLV-20260715-0001',
+      deliveredAt: new Date(),
+    };
+
+    it('should create timeline event when order is delivered', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260715-0001',
+        status: 'DIKIRIM',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+      (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
+
+      await service.handleShipmentDelivered(deliveredEvent);
+
+      expect(prisma.orderTimelineEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          tipeEvent: 'DITERIMA',
+          deskripsi: expect.stringContaining('diterima'),
+        }),
+      });
+    });
+
+    it('should skip if order not found', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await service.handleShipmentDelivered(deliveredEvent);
+
+      expect(prisma.orderTimelineEvent.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getOrderByIdInternal', () => {
+    it('should return minimal order data for cross-domain access', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        status: 'LUNAS',
+        orderNumber: 'MLV-20260715-0001',
+        customerId: 'cust-1',
+        customer: { alamat: 'Jl.测试 123' },
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+
+      const result = await service.getOrderByIdInternal('order-1');
+
+      expect(result).toEqual({
+        id: 'order-1',
+        status: 'LUNAS',
+        orderNumber: 'MLV-20260715-0001',
+        customerId: 'cust-1',
+        alamat: 'Jl.测试 123',
+      });
+    });
+
+    it('should return null if order not found', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.getOrderByIdInternal('nonexistent');
+
+      expect(result).toBeNull();
+    });
+  });
 });

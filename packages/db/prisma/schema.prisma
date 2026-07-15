@@ -70,6 +70,7 @@ model Customer {
 
   authMethods CustomerAuthMethod[]
   reviews     Review[]
+  orders      Order[]
 
   @@map("customers")
 }
@@ -145,11 +146,13 @@ model Order {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
+  customer     Customer    @relation(fields: [customerId], references: [id])
   items        OrderItem[]
   timeline     OrderTimelineEvent[]
   payments     Payment[]
   invoices     Invoice[]
   approvals    Approval[]
+  shipments    Shipment[]
 
   @@map("orders")
 }
@@ -569,3 +572,79 @@ enum TaskStatus {
   SELESAI
 }
 
+// ==========================================
+// Shipping Domain (§6.6)
+// ==========================================
+
+/// Status pengiriman — mengikuti alur §25.1
+enum ShipmentStatus {
+  DICATAT      // Shipment baru dicatat, belum handed over ke kurir
+  DIKIRIM      // Sudah handed over ke kurir
+  DALAM_TRANSIT
+  DITERIMA     // Barang diterima pelanggan
+}
+
+model Shipment {
+  id               String        @id @default(uuid())
+  orderId          String        @unique @map("order_id") // Satu shipment per order
+  kurir            String        // Nama kurir (JNE, SiCepat, J&T, dll) — input manual
+  noResi           String?       @map("no_resi") // Nomor resi — input manual setelah handed over
+  status           ShipmentStatus @default(DICATAT)
+  alamatPengiriman String?       @map("alamat_pengiriman") // Override alamat customer jika berbeda
+  biayaKirim       Float?        @map("biaya_kirim") // Informasional saja, TIDAK diintegrasikan ke Finance
+  trackingToken    String        @unique @default(uuid()) @map("tracking_token") // Token unik untuk tracking publik
+  shippedAt        DateTime?     @map("shipped_at") // Tanggal handed over ke kurir
+  deliveredAt      DateTime?     @map("delivered_at") // Tanggal diterima pelanggan
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("shipments")
+}
+
+// ==========================================
+// Notification Domain (§6.7)
+// ==========================================
+
+/// Template notifikasi per event type dan channel
+model NotificationTemplate {
+  id           String               @id @default(uuid())
+  eventType    String               @map("event_type")
+  channel      NotificationChannel
+  templateBody String               @map("template_body") // Template dengan placeholder: {{orderNumber}}, dll
+  isActive     Boolean              @default(true) @map("is_active")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@unique([eventType, channel])
+  @@map("notification_templates")
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  DASHBOARD
+  PUSH
+}
+
+/// Log pengiriman notifikasi
+model NotificationLog {
+  id          String              @id @default(uuid())
+  customerId  String?             @map("customer_id") // nullable untuk notifikasi internal
+  userId      String?             @map("user_id") // nullable untuk notifikasi pelanggan
+  orderId     String?             @map("order_id")
+  channel     NotificationChannel
+  pesan       String
+  statusKirim NotificationStatus  @default(PENDING) @map("status_kirim")
+  errorMsg    String?             @map("error_msg")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  @@map("notification_logs")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
