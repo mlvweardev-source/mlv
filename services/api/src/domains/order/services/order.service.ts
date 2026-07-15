@@ -946,7 +946,9 @@ export class OrderService {
       },
     });
 
-    this.logger.log(`Order ${order.orderNumber} transitioned to DIKIRIM (shipment: ${event.shipmentId})`);
+    this.logger.log(
+      `Order ${order.orderNumber} transitioned to DIKIRIM (shipment: ${event.shipmentId})`,
+    );
   }
 
   /**
@@ -1287,9 +1289,13 @@ export class OrderService {
    * @param orderId - ID order
    * @returns Data order { id, status, orderNumber, customerId, alamat } atau null jika tidak ada
    */
-  async getOrderByIdInternal(
-    orderId: string,
-  ): Promise<{ id: string; status: string; orderNumber: string; customerId: string; alamat: string | null } | null> {
+  async getOrderByIdInternal(orderId: string): Promise<{
+    id: string;
+    status: string;
+    orderNumber: string;
+    customerId: string;
+    alamat: string | null;
+  } | null> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {

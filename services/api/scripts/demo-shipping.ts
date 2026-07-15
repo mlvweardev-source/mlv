@@ -223,7 +223,11 @@ async function main() {
 
   // Endpoint staff tetap terkunci tanpa auth
   const staffRes = await fetch(`${base}/shipments`);
-  check('GET /shipments (staff) tanpa auth → 401', staffRes.status === 401, `HTTP ${staffRes.status}`);
+  check(
+    'GET /shipments (staff) tanpa auth → 401',
+    staffRes.status === 401,
+    `HTTP ${staffRes.status}`,
+  );
 
   // ------------------------------------------------------------------
   line('7. Cleanup data demo');
