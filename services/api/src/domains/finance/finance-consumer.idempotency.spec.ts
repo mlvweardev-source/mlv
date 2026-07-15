@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { FinanceService } from './services/finance.service';
 import { OrderService } from '../order/services/order.service';
 import { InventoryService } from '../inventory/services/inventory.service';
+import { CustomerService } from '../customer/services/customer.service';
+import { AuthService } from '../identity-access/services/auth.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
 
 // Mock prisma
@@ -54,6 +56,14 @@ describe('FinanceService - ProductionCompleted Consumer Idempotency (§16)', () 
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: OrderService, useValue: {} },
         { provide: InventoryService, useValue: {} },
+        {
+          provide: CustomerService,
+          useValue: { getCustomerByIdInternal: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: AuthService,
+          useValue: { getUserByIdInternal: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 

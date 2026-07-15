@@ -385,12 +385,23 @@ export class InventoryService {
       ),
     );
 
-    // Check low stock
+    // Check low stock — sertakan nama material (Fase 8: payload lengkap
+    // untuk alert Dashboard; materials milik Inventory Domain sendiri).
     const LIMIT = 5;
     if (newAvailable < LIMIT) {
+      const material = await prisma.material.findUnique({
+        where: { id: reservation.materialId },
+        select: { nama: true },
+      });
       await this.eventBus.publish(
         EVENT_NAMES.StockLow,
-        new StockLowEvent(reservation.materialId, warehouseId, newAvailable, LIMIT),
+        new StockLowEvent(
+          reservation.materialId,
+          warehouseId,
+          newAvailable,
+          LIMIT,
+          material?.nama ?? 'Material',
+        ),
       );
     }
 
@@ -562,9 +573,20 @@ export class InventoryService {
 
       const LIMIT = 5;
       if (newAvailable < LIMIT) {
+        // Fase 8: payload lengkap — sertakan nama material untuk alert Dashboard
+        const material = await prisma.material.findUnique({
+          where: { id: materialId },
+          select: { nama: true },
+        });
         await this.eventBus.publish(
           EVENT_NAMES.StockLow,
-          new StockLowEvent(materialId, warehouseId, newAvailable, LIMIT),
+          new StockLowEvent(
+            materialId,
+            warehouseId,
+            newAvailable,
+            LIMIT,
+            material?.nama ?? 'Material',
+          ),
         );
       }
     }

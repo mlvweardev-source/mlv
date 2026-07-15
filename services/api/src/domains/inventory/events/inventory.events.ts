@@ -1,6 +1,11 @@
 // ==========================================
 // Inventory Domain Events (§4 — DDD kontrak event)
+//
+// Fase 8: StockLow diperkaya materialNama (kontrak @mlv/types
+// event-payloads) untuk render alert Dashboard tanpa Notification
+// perlu memanggil balik domain lain.
 // ==========================================
+import type { StockLowPayload } from '@mlv/types';
 
 export class StockReservedEvent {
   static readonly eventName = 'stock.reserved';
@@ -37,7 +42,7 @@ export class StockDeductedEvent {
   ) {}
 }
 
-export class StockLowEvent {
+export class StockLowEvent implements StockLowPayload {
   static readonly eventName = 'stock.low';
 
   constructor(
@@ -45,5 +50,6 @@ export class StockLowEvent {
     public readonly warehouseId: string,
     public readonly qtyAvailable: number,
     public readonly limit: number,
+    public readonly materialNama: string,
   ) {}
 }

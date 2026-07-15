@@ -124,6 +124,9 @@ async function main() {
     jenis: 'PELUNASAN' as const,
     jumlah: payment.jumlah,
     customerId: customer.id,
+    orderNumber: created.orderNumber,
+    customerNama: customer.nama,
+    customerNoHp: customer.noHp,
   });
   await sleep(3000);
   const afterPelunasan = await prisma.order.findUnique({ where: { id: created.id } });
@@ -177,6 +180,10 @@ async function main() {
     kurir: 'JNE',
     trackingToken: shipment.trackingToken,
     createdAt: new Date(),
+    noResi: shipment.noResi,
+    customerId: customer.id,
+    customerNama: customer.nama,
+    customerNoHp: customer.noHp,
   });
   await sleep(2500);
   const afterDup = await prisma.order.findUnique({

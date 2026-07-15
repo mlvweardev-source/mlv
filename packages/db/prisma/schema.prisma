@@ -634,12 +634,16 @@ model NotificationLog {
   customerId  String?             @map("customer_id") // nullable untuk notifikasi internal
   userId      String?             @map("user_id") // nullable untuk notifikasi pelanggan
   orderId     String?             @map("order_id")
+  eventType   String?             @map("event_type") // nama event pemicu (mis. payment.succeeded); null untuk dispatch manual tanpa event
   channel     NotificationChannel
   pesan       String
   statusKirim NotificationStatus  @default(PENDING) @map("status_kirim")
   errorMsg    String?             @map("error_msg")
+  dedupKey    String?             @map("dedup_key") // hash(eventType+channel+payload) — idempotency konsumen (§16)
   createdAt   DateTime            @default(now()) @map("created_at")
 
+  @@index([dedupKey])
+  @@index([userId, createdAt])
   @@map("notification_logs")
 }
 

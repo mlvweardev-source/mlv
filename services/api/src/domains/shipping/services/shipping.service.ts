@@ -4,6 +4,7 @@ import type { ShipmentStatus } from '@mlv/db';
 import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { OrderService } from '../../order/services/order.service';
+import { CustomerService } from '../../customer/services/customer.service';
 import {
   CreateShipmentDto,
   UpdateShipmentDto,
@@ -35,6 +36,7 @@ export class ShippingService {
   constructor(
     private readonly eventBus: EventBusService,
     private readonly orderService: OrderService,
+    private readonly customerService: CustomerService,
   ) {}
 
   // ==========================================
@@ -89,6 +91,9 @@ export class ShippingService {
     // 4. Publish ShipmentCreated SETELAH commit (pola Fase 6):
     //    - order-events → OrderEventsProcessor transisi order → DIKIRIM
     //    - notification-events → subscriber umum
+    //    Payload lengkap dengan kontak pelanggan + noResi (Fase 8) —
+    //    Notification proses terpisah tidak memanggil balik domain lain.
+    const customer = await this.customerService.getCustomerByIdInternal(order.customerId);
     await this.eventBus.publish(
       EVENT_NAMES.ShipmentCreated,
       new ShipmentCreatedEvent(
@@ -98,6 +103,10 @@ export class ShippingService {
         shipment.kurir,
         shipment.trackingToken,
         shipment.createdAt,
+        shipment.noResi,
+        order.customerId,
+        customer?.nama ?? 'Pelanggan',
+        customer?.noHp ?? null,
       ),
     );
 

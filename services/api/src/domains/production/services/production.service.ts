@@ -24,6 +24,7 @@ import {
   ProductionCompletedEvent,
 } from '../events/production.events';
 import { OrderService } from '../../order/services/order.service';
+import { CustomerService } from '../../customer/services/customer.service';
 
 /**
  * Production Domain Service
@@ -42,6 +43,7 @@ export class ProductionService {
   constructor(
     private readonly eventBus: EventBusService,
     private readonly orderService: OrderService,
+    private readonly customerService: CustomerService,
   ) {}
 
   // ==========================================
@@ -595,10 +597,20 @@ export class ProductionService {
           `Semua task produksi untuk order ${order.orderNumber} telah selesai`,
         );
 
-        // Publish ProductionCompleted
+        // Publish ProductionCompleted — payload lengkap dengan kontak
+        // pelanggan (Fase 8): via CustomerService, bukan query customer
+        // langsung; Notification proses terpisah tidak memanggil balik.
+        const customer = await this.customerService.getCustomerByIdInternal(order.customerId);
         await this.eventBus.publish(
           EVENT_NAMES.ProductionCompleted,
-          new ProductionCompletedEvent(orderId, order.orderNumber, order.customerId, new Date()),
+          new ProductionCompletedEvent(
+            orderId,
+            order.orderNumber,
+            order.customerId,
+            new Date(),
+            customer?.nama ?? 'Pelanggan',
+            customer?.noHp ?? null,
+          ),
         );
 
         this.logger.log(`Production completed for order ${order.orderNumber}`);

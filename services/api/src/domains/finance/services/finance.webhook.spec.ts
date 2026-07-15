@@ -5,6 +5,8 @@ import * as crypto from 'crypto';
 import { FinanceService } from './finance.service';
 import { OrderService } from '../../order/services/order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { CustomerService } from '../../customer/services/customer.service';
+import { AuthService } from '../../identity-access/services/auth.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 
 // Mock prisma
@@ -54,6 +56,8 @@ describe('FinanceService - Webhook Signature Verification', () => {
   let service: FinanceService;
   let mockOrderService: any;
   let mockInventoryService: any;
+  let mockCustomerService: any;
+  let mockAuthService: any;
   let mockEventBus: any;
   let mockConfigService: any;
 
@@ -72,6 +76,23 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
     mockInventoryService = {
       releaseStock: jest.fn().mockResolvedValue(undefined),
+    };
+
+    mockCustomerService = {
+      getCustomerByIdInternal: jest.fn().mockResolvedValue({
+        id: 'customer-789',
+        nama: 'Budi Santoso',
+        noHp: '+628123456789',
+        email: 'budi@example.com',
+      }),
+    };
+
+    mockAuthService = {
+      getUserByIdInternal: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        nama: 'Owner MLV',
+        role: 'OWNER',
+      }),
     };
 
     mockEventBus = {
@@ -93,6 +114,8 @@ describe('FinanceService - Webhook Signature Verification', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: OrderService, useValue: mockOrderService },
         { provide: InventoryService, useValue: mockInventoryService },
+        { provide: CustomerService, useValue: mockCustomerService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 

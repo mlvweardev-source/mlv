@@ -413,6 +413,74 @@ async function main() {
     console.log(`  ✅ Routing ${routing.productType}: ${routing.urutanTask.join(' → ')}`);
   }
 
+  // ==========================================
+  // Notification Templates (§6.7, §7.1 — Fase 8)
+  // Placeholder {{...}} dirender dari payload event (payload sudah
+  // lengkap — domain penerbit yang melengkapinya, prinsip Fase 8).
+  // ==========================================
+  console.log('🌱 Seeding notification templates...');
+  const notificationTemplates: {
+    eventType: string;
+    channel: 'WHATSAPP' | 'DASHBOARD';
+    templateBody: string;
+  }[] = [
+    // ---- Channel WA (customer-facing, §7.1) ----
+    {
+      eventType: 'payment.succeeded',
+      channel: 'WHATSAPP',
+      // Persis contoh §7.2
+      templateBody:
+        'Halo {{customerNama}}, pembayaran {{jenis}} sebesar Rp {{jumlah}} untuk order {{orderNumber}} sudah kami terima. Pembayaran diterima, pesanan masuk antrean. Terima kasih! — MLV',
+    },
+    {
+      eventType: 'invoice.issued',
+      channel: 'WHATSAPP',
+      templateBody:
+        'Halo {{customerNama}}, invoice {{jenis}} sebesar Rp {{jumlah}} untuk order {{orderNumber}} sudah diterbitkan. Mohon segera melakukan pembayaran. — MLV',
+    },
+    {
+      eventType: 'shipment.created',
+      channel: 'WHATSAPP',
+      templateBody:
+        'Halo {{customerNama}}, order {{orderNumber}} sudah dikirim via {{kurir}} (no. resi: {{noResi}}). Terima kasih sudah berbelanja di MLV!',
+    },
+    {
+      eventType: 'production.completed',
+      channel: 'WHATSAPP',
+      templateBody:
+        'Halo {{customerNama}}, produksi order {{orderNumber}} sudah selesai dan menunggu pelunasan. Setelah lunas, pesanan langsung kami kirim. — MLV',
+    },
+    // ---- Channel Dashboard (internal-facing, §7.1) ----
+    {
+      eventType: 'stock.low',
+      channel: 'DASHBOARD',
+      templateBody:
+        'Stok menipis: {{materialNama}} tersisa {{qtyAvailable}} (batas minimum {{limit}}). Segera lakukan pembelian.',
+    },
+    {
+      eventType: 'approval.requested',
+      channel: 'DASHBOARD',
+      templateBody:
+        'Approval baru diajukan oleh {{requestedByNama}}: {{tipe}}. Menunggu keputusan Owner.',
+    },
+    {
+      eventType: 'approval.decided',
+      channel: 'DASHBOARD',
+      templateBody: 'Approval {{tipe}} telah diputuskan oleh {{decidedByNama}}: {{status}}.',
+    },
+  ];
+
+  for (const t of notificationTemplates) {
+    await prisma.notificationTemplate.upsert({
+      where: {
+        eventType_channel: { eventType: t.eventType, channel: t.channel },
+      },
+      update: { templateBody: t.templateBody, isActive: true },
+      create: { ...t, isActive: true },
+    });
+    console.log(`  ✅ Template ${t.eventType} → ${t.channel}`);
+  }
+
   console.log('🎉 Seed selesai!');
 }
 

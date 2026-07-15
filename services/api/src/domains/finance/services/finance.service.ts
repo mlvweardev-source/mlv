@@ -29,6 +29,8 @@ import {
 } from '../events/finance.events';
 import { OrderService } from '../../order/services/order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { CustomerService } from '../../customer/services/customer.service';
+import { AuthService } from '../../identity-access/services/auth.service';
 
 // Midtrans Snap API types
 interface MidtransSnapResponse {
@@ -51,6 +53,8 @@ export class FinanceService {
     private readonly configService: ConfigService,
     private readonly orderService: OrderService,
     private readonly inventoryService: InventoryService,
+    private readonly customerService: CustomerService,
+    private readonly authService: AuthService,
   ) {}
 
   // ==========================================
@@ -71,10 +75,8 @@ export class FinanceService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
-    // Get customer name
-    const customer = await prisma.customer.findUnique({
-      where: { id: order.customerId },
-    });
+    // Get customer name — via CustomerService (DDD boundary §4.1)
+    const customer = await this.customerService.getCustomerByIdInternal(order.customerId);
 
     // Validate jumlah
     if (dto.jumlah <= 0) {
@@ -166,6 +168,10 @@ export class FinanceService {
     // 5. Publish appropriate event
     const status = payload.transaction_status;
     if (status === 'settlement' || status === 'capture') {
+      // Fase 8: payload event WAJIB lengkap (nama/kontak pelanggan) —
+      // Notification proses terpisah tidak boleh memanggil balik domain
+      // lain. Ambil via CustomerService (DDD boundary §4.1).
+      const customer = await this.customerService.getCustomerByIdInternal(payment.order.customerId);
       await this.eventBus.publish(
         EVENT_NAMES.PaymentSucceeded,
         new PaymentSucceededEvent(
@@ -174,6 +180,9 @@ export class FinanceService {
           payment.jenis as 'DP' | 'PELUNASAN',
           payment.jumlah,
           payment.order.customerId,
+          payment.order.orderNumber,
+          customer?.nama ?? 'Pelanggan',
+          customer?.noHp ?? null,
         ),
       );
     } else if (status === 'expire') {
@@ -310,7 +319,9 @@ export class FinanceService {
       data: { status: 'ISSUED' },
     });
 
-    // Publish InvoiceIssued event
+    // Publish InvoiceIssued event — payload lengkap dengan kontak pelanggan
+    // (Fase 8): Notification proses terpisah tidak memanggil balik domain lain.
+    const customer = await this.customerService.getCustomerByIdInternal(invoice.order.customerId);
     await this.eventBus.publish(
       EVENT_NAMES.InvoiceIssued,
       new InvoiceIssuedEvent(
@@ -318,6 +329,10 @@ export class FinanceService {
         updated.orderId,
         updated.jenis as 'DP' | 'PELUNASAN',
         updated.jumlah,
+        invoice.order.orderNumber,
+        invoice.order.customerId,
+        customer?.nama ?? 'Pelanggan',
+        customer?.noHp ?? null,
       ),
     );
 
@@ -346,10 +361,18 @@ export class FinanceService {
       },
     });
 
-    // Publish ApprovalRequested event
+    // Publish ApprovalRequested event — sertakan nama pengaju (Fase 8):
+    // Dashboard alert Owner butuh nama, bukan cuma ID.
+    const requester = await this.authService.getUserByIdInternal(actor.sub);
     await this.eventBus.publish(
       EVENT_NAMES.ApprovalRequested,
-      new ApprovalRequestedEvent(approval.id, dto.tipe, dto.refId ?? null, actor.sub),
+      new ApprovalRequestedEvent(
+        approval.id,
+        dto.tipe,
+        dto.refId ?? null,
+        actor.sub,
+        requester?.nama ?? 'Staff',
+      ),
     );
 
     return approval;
@@ -395,7 +418,8 @@ export class FinanceService {
       await this.executeApprovalEffect(approval, dto.alasan);
     }
 
-    // Publish ApprovalDecided event
+    // Publish ApprovalDecided event — sertakan nama pemutus (Fase 8)
+    const decider = await this.authService.getUserByIdInternal(actor.sub);
     await this.eventBus.publish(
       EVENT_NAMES.ApprovalDecided,
       new ApprovalDecidedEvent(
@@ -403,6 +427,7 @@ export class FinanceService {
         updated.tipe,
         updated.status as 'APPROVED' | 'REJECTED',
         actor.sub,
+        decider?.nama ?? 'Owner',
         dto.alasan,
       ),
     );

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { OrderService } from '../../order/services/order.service';
+import { CustomerService } from '../../customer/services/customer.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActorType, UserRole } from '@mlv/auth';
 
@@ -72,6 +73,17 @@ describe('ProductionService', () => {
         {
           provide: OrderService,
           useValue: mockOrderService,
+        },
+        {
+          provide: CustomerService,
+          useValue: {
+            getCustomerByIdInternal: jest.fn().mockResolvedValue({
+              id: 'customer-1',
+              nama: 'Budi Santoso',
+              noHp: '+628123456789',
+              email: null,
+            }),
+          },
         },
       ],
     }).compile();

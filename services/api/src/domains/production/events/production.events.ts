@@ -1,6 +1,12 @@
 // ==========================================
 // Production Domain Events (§7.1)
+//
+// Fase 8: ProductionCompleted diperkaya kontak pelanggan (kontrak
+// @mlv/types event-payloads) untuk WA "produksi selesai, menunggu
+// pelunasan" — Notification proses terpisah tidak boleh memanggil
+// balik domain lain.
 // ==========================================
+import type { ProductionCompletedPayload } from '@mlv/types';
 
 export class TaskStartedEvent {
   static readonly eventName = 'production.task.started';
@@ -29,7 +35,7 @@ export class TaskCompletedEvent {
   ) {}
 }
 
-export class ProductionCompletedEvent {
+export class ProductionCompletedEvent implements ProductionCompletedPayload {
   static readonly eventName = 'production.completed';
 
   constructor(
@@ -37,5 +43,7 @@ export class ProductionCompletedEvent {
     public readonly orderNumber: string,
     public readonly customerId: string,
     public readonly completedAt: Date,
+    public readonly customerNama: string,
+    public readonly customerNoHp: string | null,
   ) {}
 }

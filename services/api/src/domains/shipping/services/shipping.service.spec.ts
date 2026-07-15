@@ -3,6 +3,7 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ShippingService } from './shipping.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { OrderService } from '../../order/services/order.service';
+import { CustomerService } from '../../customer/services/customer.service';
 import { prisma } from '@mlv/db';
 import type { ShipmentStatus } from '@mlv/db';
 
@@ -74,6 +75,19 @@ describe('ShippingService (Unit)', () => {
         {
           provide: OrderService,
           useValue: { getOrderByIdInternal: jest.fn() },
+        },
+        {
+          // Fase 8: kontak pelanggan diambil via CustomerService sebelum
+          // publish ShipmentCreated (payload event lengkap).
+          provide: CustomerService,
+          useValue: {
+            getCustomerByIdInternal: jest.fn().mockResolvedValue({
+              id: 'cust-1',
+              nama: 'Budi Santoso',
+              noHp: '+628123456789',
+              email: null,
+            }),
+          },
         },
       ],
     }).compile();

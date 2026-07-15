@@ -125,12 +125,17 @@ async function main() {
 
   // ------------------------------------------------------------------
   line('2. PUBLISH PaymentSucceeded (yang dilakukan webhook Midtrans)');
+  // Payload lengkap (Fase 8): customerNama + customerNoHp agar Notification
+  // (proses terpisah) bisa render template WA tanpa memanggil balik.
   const paymentEvent = {
     paymentId: payment.id,
     orderId: created.id,
     jenis: 'DP' as const,
     jumlah: payment.jumlah,
     customerId: customer.id,
+    orderNumber: created.orderNumber,
+    customerNama: customer.nama,
+    customerNoHp: customer.noHp,
   };
   await eventBus.publish(EVENT_NAMES.PaymentSucceeded, paymentEvent);
   console.log('PaymentSucceeded dipublish → queue [order-events, notification-events]');

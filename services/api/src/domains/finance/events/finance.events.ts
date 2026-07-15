@@ -1,9 +1,19 @@
 /**
  * Payment Events - Finance Domain
  * Published when payment status changes
+ *
+ * Fase 8: payload event customer-facing diperkaya dengan identitas/kontak
+ * pelanggan + orderNumber (kontrak @mlv/types event-payloads) — Notification
+ * berjalan di proses terpisah dan TIDAK boleh memanggil balik domain lain.
  */
+import type {
+  PaymentSucceededPayload,
+  InvoiceIssuedPayload,
+  ApprovalRequestedPayload,
+  ApprovalDecidedPayload,
+} from '@mlv/types';
 
-export class PaymentSucceededEvent {
+export class PaymentSucceededEvent implements PaymentSucceededPayload {
   static eventName = 'payment.succeeded';
 
   constructor(
@@ -12,6 +22,9 @@ export class PaymentSucceededEvent {
     public readonly jenis: 'DP' | 'PELUNASAN',
     public readonly jumlah: number,
     public readonly customerId: string,
+    public readonly orderNumber: string,
+    public readonly customerNama: string,
+    public readonly customerNoHp: string | null,
   ) {}
 }
 
@@ -34,7 +47,7 @@ export class PaymentExpiredEvent {
   ) {}
 }
 
-export class InvoiceIssuedEvent {
+export class InvoiceIssuedEvent implements InvoiceIssuedPayload {
   static eventName = 'invoice.issued';
 
   constructor(
@@ -42,10 +55,14 @@ export class InvoiceIssuedEvent {
     public readonly orderId: string,
     public readonly jenis: 'DP' | 'PELUNASAN',
     public readonly jumlah: number,
+    public readonly orderNumber: string,
+    public readonly customerId: string,
+    public readonly customerNama: string,
+    public readonly customerNoHp: string | null,
   ) {}
 }
 
-export class ApprovalRequestedEvent {
+export class ApprovalRequestedEvent implements ApprovalRequestedPayload {
   static eventName = 'approval.requested';
 
   constructor(
@@ -53,10 +70,11 @@ export class ApprovalRequestedEvent {
     public readonly tipe: string,
     public readonly refId: string | null,
     public readonly requestedBy: string,
+    public readonly requestedByNama: string,
   ) {}
 }
 
-export class ApprovalDecidedEvent {
+export class ApprovalDecidedEvent implements ApprovalDecidedPayload {
   static eventName = 'approval.decided';
 
   constructor(
@@ -64,6 +82,7 @@ export class ApprovalDecidedEvent {
     public readonly tipe: string,
     public readonly status: 'APPROVED' | 'REJECTED',
     public readonly decidedBy: string,
+    public readonly decidedByNama: string,
     public readonly alasan?: string,
   ) {}
 }

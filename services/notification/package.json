@@ -8,15 +8,21 @@
     "start": "nest start",
     "start:prod": "node dist/main",
     "lint": "tsc --noEmit",
-    "test": "jest --passWithNoTests"
+    "test": "jest",
+    "demo:notification": "ts-node scripts/demo-notification.ts"
   },
   "dependencies": {
+    "@mlv/auth": "workspace:*",
+    "@mlv/db": "workspace:*",
     "@mlv/types": "workspace:*",
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/bullmq": "^11.0.0",
     "bullmq": "^5.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
     "ioredis": "^5.4.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0"
@@ -33,5 +39,22 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.0",
     "@types/jest": "^29.5.0"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }

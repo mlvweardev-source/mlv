@@ -132,6 +132,36 @@ export class CustomerService {
     return review;
   }
 
+  // ==========================================
+  // Cross-Domain: Get Customer Data (DDD Boundary §4.1)
+  // ==========================================
+  // Domain lain (Order, Finance, Production, Shipping) memanggil method
+  // ini untuk mengambil identitas/kontak pelanggan SEBELUM publish event —
+  // payload event harus lengkap agar Notification (proses terpisah) tidak
+  // perlu memanggil balik service domain lain (prinsip Fase 8).
+  // Domain lain TIDAK BOLEH query prisma.customer.findUnique() langsung.
+
+  /**
+   * Ambil data customer minimal untuk kebutuhan payload event / validasi
+   * domain lain. Mengembalikan data internal, BUKAN DTO response.
+   *
+   * @param customerId - ID customer
+   * @returns { id, nama, noHp, email } atau null jika tidak ada
+   */
+  async getCustomerByIdInternal(customerId: string): Promise<{
+    id: string;
+    nama: string;
+    noHp: string | null;
+    email: string | null;
+  } | null> {
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, nama: true, noHp: true, email: true },
+    });
+
+    return customer;
+  }
+
   // =====================
   // Access Control Helper
   // =====================

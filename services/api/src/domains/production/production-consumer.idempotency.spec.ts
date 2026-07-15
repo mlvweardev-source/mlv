@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductionService } from './services/production.service';
 import { OrderService } from '../order/services/order.service';
+import { CustomerService } from '../customer/services/customer.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
 
 // Mock @mlv/db
@@ -57,6 +58,10 @@ describe('ProductionService - OrderConfirmed Consumer Idempotency (§16)', () =>
         {
           provide: OrderService,
           useValue: { addTimelineEvent: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: CustomerService,
+          useValue: { getCustomerByIdInternal: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();

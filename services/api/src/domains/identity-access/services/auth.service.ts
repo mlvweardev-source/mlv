@@ -260,6 +260,32 @@ export class AuthService {
     return { actorType: ActorType.CUSTOMER, ...customer };
   }
 
+  // ==========================================
+  // Cross-Domain: Get User Data (DDD Boundary §4.1)
+  // ==========================================
+  // Domain lain memanggil method ini untuk mengambil nama staff SEBELUM
+  // publish event (payload event harus lengkap — prinsip Fase 8).
+  // Domain lain TIDAK BOLEH query prisma.user.findUnique() langsung.
+
+  /**
+   * Ambil data user (staff) minimal untuk payload event.
+   *
+   * @param userId - ID user staff
+   * @returns { id, nama, role } atau null jika tidak ada
+   */
+  async getUserByIdInternal(userId: string): Promise<{
+    id: string;
+    nama: string;
+    role: UserRole;
+  } | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, nama: true, role: true },
+    });
+
+    return user ? { id: user.id, nama: user.nama, role: user.role as UserRole } : null;
+  }
+
   // =====================
   // Seed helper (for dev)
   // =====================
