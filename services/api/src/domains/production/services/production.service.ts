@@ -5,11 +5,12 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { prisma } from '@mlv/db';
 import type { TaskStatus, TaskType } from '@mlv/db';
 import type { JwtPayload } from '@mlv/auth';
 import { ActorType } from '@mlv/auth';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import {
   GetTasksQueryDto,
   UpdateTaskStatusDto,
@@ -39,7 +40,7 @@ export class ProductionService {
   private readonly logger = new Logger(ProductionService.name);
 
   constructor(
-    private readonly eventEmitter: EventEmitter2,
+    private readonly eventBus: EventBusService,
     private readonly orderService: OrderService,
   ) {}
 
@@ -90,6 +91,20 @@ export class ProductionService {
     orderId: string,
     orderNumber: string,
   ): Promise<void> {
+    // IDEMPOTENCY (§16): skip jika order item sudah punya production tasks —
+    // event OrderConfirmed yang dikirim dua kali tidak boleh menghasilkan
+    // task ganda. Cek state DB, bukan mengandalkan dedup BullMQ.
+    const existingTaskCount = await prisma.productionTask.count({
+      where: { orderItemId: item.id },
+    });
+
+    if (existingTaskCount > 0) {
+      this.logger.log(
+        `Order item ${item.id} sudah punya ${existingTaskCount} tasks — skip (idempotent no-op)`,
+      );
+      return;
+    }
+
     // Ambil routing untuk product type ini
     const routing = await prisma.productionRouting.findUnique({
       where: { productType: item.productType },
@@ -353,8 +368,8 @@ export class ProductionService {
     // Publish TaskStarted event
     const fullTask = await this.getTaskById(taskId);
     if (fullTask.orderItem) {
-      this.eventEmitter.emit(
-        TaskStartedEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.TaskStarted,
         new TaskStartedEvent(
           task.id,
           task.orderItemId,
@@ -428,8 +443,8 @@ export class ProductionService {
       );
 
       // Publish TaskCompleted event
-      this.eventEmitter.emit(
-        TaskCompletedEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.TaskCompleted,
         new TaskCompletedEvent(
           task.id,
           task.orderItemId,
@@ -581,8 +596,8 @@ export class ProductionService {
         );
 
         // Publish ProductionCompleted
-        this.eventEmitter.emit(
-          ProductionCompletedEvent.eventName,
+        await this.eventBus.publish(
+          EVENT_NAMES.ProductionCompleted,
           new ProductionCompletedEvent(orderId, order.orderNumber, order.customerId, new Date()),
         );
 

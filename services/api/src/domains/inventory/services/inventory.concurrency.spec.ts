@@ -18,9 +18,9 @@ if (typeof (process as any).loadEnvFile === 'function') {
 }
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { prisma } from '@mlv/db';
 
 describe('InventoryService (Concurrency Integration)', () => {
@@ -40,9 +40,9 @@ describe('InventoryService (Concurrency Integration)', () => {
       providers: [
         InventoryService,
         {
-          provide: EventEmitter2,
+          provide: EventBusService,
           useValue: {
-            emit: jest.fn(),
+            publish: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

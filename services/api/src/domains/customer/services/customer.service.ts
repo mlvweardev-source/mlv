@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { prisma } from '@mlv/db';
 import { ActorType } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { UpdateCustomerDto, CreateReviewDto } from '../dto/customer.dto';
 import { CustomerProfileUpdatedEvent } from '../events/customer.events';
 
 @Injectable()
 export class CustomerService {
-  constructor(private readonly eventEmitter: EventEmitter2) {}
+  constructor(private readonly eventBus: EventBusService) {}
 
   /**
    * GET /customers/:id — Ambil profil pelanggan.
@@ -60,8 +61,8 @@ export class CustomerService {
     });
 
     // Publish event (§4 — DDD)
-    this.eventEmitter.emit(
-      CustomerProfileUpdatedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.CustomerProfileUpdated,
       new CustomerProfileUpdatedEvent(customer.id, updatedFields, new Date()),
     );
 

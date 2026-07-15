@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { FinanceService } from './finance.service';
 import { OrderService } from '../../order/services/order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 
 // Mock prisma
 jest.mock('@mlv/db', () => ({
@@ -54,7 +54,7 @@ describe('FinanceService - Webhook Signature Verification', () => {
   let service: FinanceService;
   let mockOrderService: any;
   let mockInventoryService: any;
-  let mockEventEmitter: any;
+  let mockEventBus: any;
   let mockConfigService: any;
 
   const mockServerKey = 'test-server-key-12345';
@@ -74,8 +74,8 @@ describe('FinanceService - Webhook Signature Verification', () => {
       releaseStock: jest.fn().mockResolvedValue(undefined),
     };
 
-    mockEventEmitter = {
-      emit: jest.fn(),
+    mockEventBus = {
+      publish: jest.fn().mockResolvedValue(undefined),
     };
 
     mockConfigService = {
@@ -89,7 +89,7 @@ describe('FinanceService - Webhook Signature Verification', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FinanceService,
-        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EventBusService, useValue: mockEventBus },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: OrderService, useValue: mockOrderService },
         { provide: InventoryService, useValue: mockInventoryService },
@@ -120,7 +120,7 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
       // Verify: tidak ada payment yang di-update
       expect(prisma.payment.update).not.toHaveBeenCalled();
-      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      expect(mockEventBus.publish).not.toHaveBeenCalled();
     });
 
     it('should reject webhook with tampered amount', async () => {
@@ -298,9 +298,9 @@ describe('FinanceService - Webhook Signature Verification', () => {
       // Should complete without error (payment not found = ignored)
       await service.handleMidtransWebhook(payload, validSignature);
 
-      // Verify: tidak ada update atau event emit
+      // Verify: tidak ada update atau event publish
       expect(prisma.payment.update).not.toHaveBeenCalled();
-      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      expect(mockEventBus.publish).not.toHaveBeenCalled();
     });
 
     it('should emit PaymentExpired event when transaction expires', async () => {
@@ -342,8 +342,8 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
       await service.handleMidtransWebhook(payload, validSignature);
 
-      // Verify: PaymentExpired event dipublish
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+      // Verify: PaymentExpired event dipublish (via BullMQ event bus)
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
         'payment.expired',
         expect.objectContaining({
           paymentId,

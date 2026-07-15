@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ForbiddenException } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { OrderService } from '../../order/services/order.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActorType, UserRole } from '@mlv/auth';
 
 // Mock @mlv/db - all inline to avoid hoisting issues
@@ -64,9 +64,9 @@ describe('ProductionService', () => {
       providers: [
         ProductionService,
         {
-          provide: EventEmitter2,
+          provide: EventBusService,
           useValue: {
-            emit: jest.fn(),
+            publish: jest.fn().mockResolvedValue(undefined),
           },
         },
         {

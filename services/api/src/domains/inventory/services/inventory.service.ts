@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { prisma } from '@mlv/db';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import {
   CreateMaterialDto,
   CreateBomDto,
@@ -19,7 +20,9 @@ import {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly eventEmitter: EventEmitter2) {}
+  private readonly logger = new Logger(InventoryService.name);
+
+  constructor(private readonly eventBus: EventBusService) {}
 
   // ==========================================
   // Material Master Data
@@ -112,7 +115,7 @@ export class InventoryService {
     }
     const warehouseId = warehouse.id;
 
-    return prisma.$transaction(async (tx) => {
+    const reservation = await prisma.$transaction(async (tx) => {
       // 1. Pastikan record stock_balances ada sebelum di-lock
       const balanceExists = await tx.stockBalance.findUnique({
         where: {
@@ -133,8 +136,8 @@ export class InventoryService {
 
       // 2. Lock row menggunakan SELECT ... FOR UPDATE
       const balances = await tx.$queryRaw<any[]>`
-        SELECT * FROM "stock_balances" 
-        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId} 
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId}
         FOR UPDATE
       `;
       const balance = balances[0];
@@ -156,7 +159,7 @@ export class InventoryService {
       const expiresAt = dto.expiresAt
         ? new Date(dto.expiresAt)
         : new Date(Date.now() + 15 * 60 * 1000); // 15 menit default
-      const reservation = await tx.stockReservation.create({
+      const newReservation = await tx.stockReservation.create({
         data: {
           orderId,
           materialId,
@@ -174,7 +177,7 @@ export class InventoryService {
           tipe: 'RESERVE',
           qty,
           refType: 'reservation',
-          refId: reservation.id,
+          refId: newReservation.id,
         },
       });
 
@@ -188,20 +191,23 @@ export class InventoryService {
         },
       });
 
-      // 6. Emit event
-      this.eventEmitter.emit(
-        StockReservedEvent.eventName,
-        new StockReservedEvent(
-          reservation.id,
-          reservation.orderId,
-          reservation.materialId,
-          reservation.qty,
-          reservation.expiresAt,
-        ),
-      );
-
-      return reservation;
+      return newReservation;
     });
+
+    // 6. Publish event SETELAH transaksi commit — event tidak boleh
+    //    terkirim untuk transaksi yang di-rollback (BullMQ = network I/O)
+    await this.eventBus.publish(
+      EVENT_NAMES.StockReserved,
+      new StockReservedEvent(
+        reservation.id,
+        reservation.orderId,
+        reservation.materialId,
+        reservation.qty,
+        reservation.expiresAt,
+      ),
+    );
+
+    return reservation;
   }
 
   async releaseStock(dto: ReleaseStockDto) {
@@ -211,25 +217,25 @@ export class InventoryService {
     }
     const warehouseId = warehouse.id;
 
-    return prisma.$transaction(async (tx) => {
-      const reservation = await tx.stockReservation.findUnique({
+    const { updatedReservation, reservation } = await prisma.$transaction(async (tx) => {
+      const currentReservation = await tx.stockReservation.findUnique({
         where: { id: dto.reservationId },
       });
 
-      if (!reservation) {
+      if (!currentReservation) {
         throw new NotFoundException('Reservasi tidak ditemukan');
       }
 
-      if (reservation.status !== 'ACTIVE') {
+      if (currentReservation.status !== 'ACTIVE') {
         throw new BadRequestException(
-          `Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`,
+          `Reservasi sudah tidak aktif (status saat ini: ${currentReservation.status})`,
         );
       }
 
       // Lock row
       const balances = await tx.$queryRaw<any[]>`
-        SELECT * FROM "stock_balances" 
-        WHERE "material_id" = ${reservation.materialId} AND "warehouse_id" = ${warehouseId} 
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${currentReservation.materialId} AND "warehouse_id" = ${warehouseId}
         FOR UPDATE
       `;
       const balance = balances[0];
@@ -240,20 +246,20 @@ export class InventoryService {
       const reserved = Number(balance.qty_reserved ?? balance.qtyReserved ?? 0);
 
       // Update status
-      const updatedReservation = await tx.stockReservation.update({
-        where: { id: reservation.id },
+      const updated = await tx.stockReservation.update({
+        where: { id: currentReservation.id },
         data: { status: 'RELEASED' },
       });
 
       // Write movement
       await tx.stockMovement.create({
         data: {
-          materialId: reservation.materialId,
+          materialId: currentReservation.materialId,
           warehouseId,
           tipe: 'RELEASE',
-          qty: reservation.qty,
+          qty: currentReservation.qty,
           refType: 'reservation',
-          refId: reservation.id,
+          refId: currentReservation.id,
         },
       });
 
@@ -261,28 +267,30 @@ export class InventoryService {
       await tx.stockBalance.update({
         where: {
           materialId_warehouseId: {
-            materialId: reservation.materialId,
+            materialId: currentReservation.materialId,
             warehouseId,
           },
         },
         data: {
-          qtyReserved: Math.max(0, reserved - reservation.qty),
+          qtyReserved: Math.max(0, reserved - currentReservation.qty),
         },
       });
 
-      // Emit event
-      this.eventEmitter.emit(
-        StockReservationReleasedEvent.eventName,
-        new StockReservationReleasedEvent(
-          reservation.id,
-          reservation.orderId,
-          reservation.materialId,
-          reservation.qty,
-        ),
-      );
-
-      return updatedReservation;
+      return { updatedReservation: updated, reservation: currentReservation };
     });
+
+    // Publish event setelah transaksi commit
+    await this.eventBus.publish(
+      EVENT_NAMES.StockReservationReleased,
+      new StockReservationReleasedEvent(
+        reservation.id,
+        reservation.orderId,
+        reservation.materialId,
+        reservation.qty,
+      ),
+    );
+
+    return updatedReservation;
   }
 
   async deductStock(reservationId: string) {
@@ -292,93 +300,165 @@ export class InventoryService {
     }
     const warehouseId = warehouse.id;
 
-    return prisma.$transaction(async (tx) => {
-      const reservation = await tx.stockReservation.findUnique({
-        where: { id: reservationId },
-      });
+    const { updatedReservation, reservation, newAvailable } = await prisma.$transaction(
+      async (tx) => {
+        const currentReservation = await tx.stockReservation.findUnique({
+          where: { id: reservationId },
+        });
 
-      if (!reservation) {
-        throw new NotFoundException('Reservasi tidak ditemukan');
-      }
+        if (!currentReservation) {
+          throw new NotFoundException('Reservasi tidak ditemukan');
+        }
 
-      if (reservation.status !== 'ACTIVE') {
-        throw new BadRequestException(
-          `Reservasi sudah tidak aktif (status saat ini: ${reservation.status})`,
-        );
-      }
+        if (currentReservation.status !== 'ACTIVE') {
+          throw new BadRequestException(
+            `Reservasi sudah tidak aktif (status saat ini: ${currentReservation.status})`,
+          );
+        }
 
-      // Lock row
-      const balances = await tx.$queryRaw<any[]>`
-        SELECT * FROM "stock_balances" 
-        WHERE "material_id" = ${reservation.materialId} AND "warehouse_id" = ${warehouseId} 
+        // Lock row
+        const balances = await tx.$queryRaw<any[]>`
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${currentReservation.materialId} AND "warehouse_id" = ${warehouseId}
         FOR UPDATE
       `;
-      const balance = balances[0];
-      if (!balance) {
-        throw new NotFoundException('Saldo stok tidak ditemukan');
-      }
+        const balance = balances[0];
+        if (!balance) {
+          throw new NotFoundException('Saldo stok tidak ditemukan');
+        }
 
-      const available = Number(balance.qty_available ?? balance.qtyAvailable ?? 0);
-      const reserved = Number(balance.qty_reserved ?? balance.qtyReserved ?? 0);
+        const available = Number(balance.qty_available ?? balance.qtyAvailable ?? 0);
+        const reserved = Number(balance.qty_reserved ?? balance.qtyReserved ?? 0);
 
-      // Update status
-      const updatedReservation = await tx.stockReservation.update({
-        where: { id: reservationId },
-        data: { status: 'CONSUMED' },
-      });
+        // Update status
+        const updated = await tx.stockReservation.update({
+          where: { id: reservationId },
+          data: { status: 'CONSUMED' },
+        });
 
-      // Write movement (OUT)
-      await tx.stockMovement.create({
-        data: {
-          materialId: reservation.materialId,
-          warehouseId,
-          tipe: 'OUT',
-          qty: reservation.qty,
-          refType: 'reservation',
-          refId: reservation.id,
-        },
-      });
-
-      // Update balance cache
-      const newAvailable = Math.max(0, available - reservation.qty);
-      const newReserved = Math.max(0, reserved - reservation.qty);
-
-      await tx.stockBalance.update({
-        where: {
-          materialId_warehouseId: {
-            materialId: reservation.materialId,
+        // Write movement (OUT)
+        await tx.stockMovement.create({
+          data: {
+            materialId: currentReservation.materialId,
             warehouseId,
+            tipe: 'OUT',
+            qty: currentReservation.qty,
+            refType: 'reservation',
+            refId: currentReservation.id,
           },
-        },
-        data: {
-          qtyAvailable: newAvailable,
-          qtyReserved: newReserved,
-        },
-      });
+        });
 
-      // Emit event
-      this.eventEmitter.emit(
-        StockDeductedEvent.eventName,
-        new StockDeductedEvent(
-          reservation.materialId,
-          warehouseId,
-          reservation.qty,
-          'reservation',
-          reservation.id,
-        ),
+        // Update balance cache
+        const nextAvailable = Math.max(0, available - currentReservation.qty);
+        const nextReserved = Math.max(0, reserved - currentReservation.qty);
+
+        await tx.stockBalance.update({
+          where: {
+            materialId_warehouseId: {
+              materialId: currentReservation.materialId,
+              warehouseId,
+            },
+          },
+          data: {
+            qtyAvailable: nextAvailable,
+            qtyReserved: nextReserved,
+          },
+        });
+
+        return {
+          updatedReservation: updated,
+          reservation: currentReservation,
+          newAvailable: nextAvailable,
+        };
+      },
+    );
+
+    // Publish events setelah transaksi commit
+    await this.eventBus.publish(
+      EVENT_NAMES.StockDeducted,
+      new StockDeductedEvent(
+        reservation.materialId,
+        warehouseId,
+        reservation.qty,
+        'reservation',
+        reservation.id,
+      ),
+    );
+
+    // Check low stock
+    const LIMIT = 5;
+    if (newAvailable < LIMIT) {
+      await this.eventBus.publish(
+        EVENT_NAMES.StockLow,
+        new StockLowEvent(reservation.materialId, warehouseId, newAvailable, LIMIT),
       );
+    }
 
-      // Check low stock
-      const LIMIT = 5;
-      if (newAvailable < LIMIT) {
-        this.eventEmitter.emit(
-          StockLowEvent.eventName,
-          new StockLowEvent(reservation.materialId, warehouseId, newAvailable, LIMIT),
-        );
-      }
+    return updatedReservation;
+  }
 
-      return updatedReservation;
+  // ==========================================
+  // Konsumsi Event (dipanggil oleh InventoryEventsProcessor)
+  // ==========================================
+
+  /**
+   * Konsumen OrderConfirmed (§7.2): kunci reservasi jadi pengurangan
+   * stok permanen (deduction) untuk semua reservasi ACTIVE milik order.
+   *
+   * IDEMPOTEN (§16): hanya reservasi ACTIVE yang diproses — event yang
+   * dikirim dua kali tidak menghasilkan deduction ganda karena reservasi
+   * sudah berstatus CONSUMED pada pemrosesan kedua.
+   */
+  async consumeReservationsForOrder(orderId: string): Promise<number> {
+    const reservations = await prisma.stockReservation.findMany({
+      where: { orderId, status: 'ACTIVE' },
     });
+
+    if (reservations.length === 0) {
+      this.logger.log(`No ACTIVE reservations for order ${orderId} — idempotent no-op`);
+      return 0;
+    }
+
+    for (const res of reservations) {
+      try {
+        await this.deductStock(res.id);
+      } catch (error) {
+        this.logger.error(`Failed to deduct reservation ${res.id}: ${error}`);
+        throw error; // biar BullMQ retry
+      }
+    }
+
+    this.logger.log(`Consumed ${reservations.length} reservations for order ${orderId}`);
+    return reservations.length;
+  }
+
+  /**
+   * Konsumen PaymentFailed / PaymentExpired (§7.1): lepas semua
+   * reservasi ACTIVE milik order.
+   *
+   * IDEMPOTEN: hanya reservasi ACTIVE yang dilepas.
+   */
+  async releaseReservationsForOrder(orderId: string): Promise<number> {
+    const reservations = await prisma.stockReservation.findMany({
+      where: { orderId, status: 'ACTIVE' },
+    });
+
+    if (reservations.length === 0) {
+      this.logger.log(`No ACTIVE reservations for order ${orderId} — idempotent no-op`);
+      return 0;
+    }
+
+    for (const res of reservations) {
+      try {
+        await this.releaseStock({ reservationId: res.id });
+      } catch (error) {
+        this.logger.error(`Failed to release reservation ${res.id}: ${error}`);
+        throw error; // biar BullMQ retry
+      }
+    }
+
+    this.logger.log(`Released ${reservations.length} reservations for order ${orderId}`);
+    return reservations.length;
   }
 
   // ==========================================
@@ -388,7 +468,7 @@ export class InventoryService {
   async createStockMovement(dto: CreateStockMovementDto) {
     const { materialId, warehouseId, tipe, qty, refType, refId, createdBy } = dto;
 
-    return prisma.$transaction(async (tx) => {
+    const { movement, newAvailable } = await prisma.$transaction(async (tx) => {
       // Lock row
       const balanceExists = await tx.stockBalance.findUnique({
         where: {
@@ -408,46 +488,46 @@ export class InventoryService {
       }
 
       const balances = await tx.$queryRaw<any[]>`
-        SELECT * FROM "stock_balances" 
-        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId} 
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId}
         FOR UPDATE
       `;
       const balance = balances[0];
       const available = Number(balance.qty_available ?? balance.qtyAvailable ?? 0);
       const reserved = Number(balance.qty_reserved ?? balance.qtyReserved ?? 0);
 
-      let newAvailable = available;
-      let newReserved = reserved;
+      let nextAvailable = available;
+      let nextReserved = reserved;
 
       if (tipe === 'IN') {
-        newAvailable += qty;
+        nextAvailable += qty;
       } else if (tipe === 'OUT') {
         if (available < qty) {
           throw new BadRequestException(
             `Stok tidak mencukupi untuk pengeluaran. Tersedia: ${available}, Diminta: ${qty}`,
           );
         }
-        newAvailable -= qty;
+        nextAvailable -= qty;
       } else if (tipe === 'RESERVE') {
         if (available - reserved < qty) {
           throw new BadRequestException(
             `Stok tidak mencukupi untuk reservasi. Tersedia: ${available - reserved}, Diminta: ${qty}`,
           );
         }
-        newReserved += qty;
+        nextReserved += qty;
       } else if (tipe === 'RELEASE') {
-        newReserved = Math.max(0, reserved - qty);
+        nextReserved = Math.max(0, reserved - qty);
       } else if (tipe === 'ADJUST') {
-        newAvailable += qty;
-        if (newAvailable < 0) {
+        nextAvailable += qty;
+        if (nextAvailable < 0) {
           throw new BadRequestException(
-            `Penyesuaian stok akan mengakibatkan saldo negatif: ${newAvailable}`,
+            `Penyesuaian stok akan mengakibatkan saldo negatif: ${nextAvailable}`,
           );
         }
       }
 
       // Write movement
-      const movement = await tx.stockMovement.create({
+      const newMovement = await tx.stockMovement.create({
         data: {
           materialId,
           warehouseId,
@@ -465,29 +545,31 @@ export class InventoryService {
           materialId_warehouseId: { materialId, warehouseId },
         },
         data: {
-          qtyAvailable: newAvailable,
-          qtyReserved: newReserved,
+          qtyAvailable: nextAvailable,
+          qtyReserved: nextReserved,
         },
       });
 
-      // Emit event
-      if (tipe === 'OUT') {
-        this.eventEmitter.emit(
-          StockDeductedEvent.eventName,
-          new StockDeductedEvent(materialId, warehouseId, qty, refType ?? null, refId ?? null),
-        );
-
-        const LIMIT = 5;
-        if (newAvailable < LIMIT) {
-          this.eventEmitter.emit(
-            StockLowEvent.eventName,
-            new StockLowEvent(materialId, warehouseId, newAvailable, LIMIT),
-          );
-        }
-      }
-
-      return movement;
+      return { movement: newMovement, newAvailable: nextAvailable };
     });
+
+    // Publish events setelah transaksi commit
+    if (tipe === 'OUT') {
+      await this.eventBus.publish(
+        EVENT_NAMES.StockDeducted,
+        new StockDeductedEvent(materialId, warehouseId, qty, refType ?? null, refId ?? null),
+      );
+
+      const LIMIT = 5;
+      if (newAvailable < LIMIT) {
+        await this.eventBus.publish(
+          EVENT_NAMES.StockLow,
+          new StockLowEvent(materialId, warehouseId, newAvailable, LIMIT),
+        );
+      }
+    }
+
+    return movement;
   }
 
   // ==========================================
@@ -553,8 +635,8 @@ export class InventoryService {
       }
 
       const balances = await tx.$queryRaw<any[]>`
-        SELECT * FROM "stock_balances" 
-        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId} 
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${materialId} AND "warehouse_id" = ${warehouseId}
         FOR UPDATE
       `;
       const balance = balances[0];

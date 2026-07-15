@@ -5,12 +5,13 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { prisma } from '@mlv/db';
 import type { JwtPayload } from '@mlv/auth';
 import { ActorType, UserRole } from '@mlv/auth';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import {
   CreatePaymentDto,
   CreateApprovalDto,
@@ -46,7 +47,7 @@ export class FinanceService {
   private readonly logger = new Logger(FinanceService.name);
 
   constructor(
-    private readonly eventEmitter: EventEmitter2,
+    private readonly eventBus: EventBusService,
     private readonly configService: ConfigService,
     private readonly orderService: OrderService,
     private readonly inventoryService: InventoryService,
@@ -165,8 +166,8 @@ export class FinanceService {
     // 5. Publish appropriate event
     const status = payload.transaction_status;
     if (status === 'settlement' || status === 'capture') {
-      this.eventEmitter.emit(
-        PaymentSucceededEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.PaymentSucceeded,
         new PaymentSucceededEvent(
           payment.id,
           payment.orderId,
@@ -176,13 +177,13 @@ export class FinanceService {
         ),
       );
     } else if (status === 'expire') {
-      this.eventEmitter.emit(
-        PaymentExpiredEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.PaymentExpired,
         new PaymentExpiredEvent(payment.id, payment.orderId),
       );
     } else if (status === 'cancel' || status === 'deny') {
-      this.eventEmitter.emit(
-        PaymentFailedEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.PaymentFailed,
         new PaymentFailedEvent(payment.id, payment.orderId, payload.status_message),
       );
     }
@@ -310,8 +311,8 @@ export class FinanceService {
     });
 
     // Publish InvoiceIssued event
-    this.eventEmitter.emit(
-      InvoiceIssuedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.InvoiceIssued,
       new InvoiceIssuedEvent(
         updated.id,
         updated.orderId,
@@ -346,8 +347,8 @@ export class FinanceService {
     });
 
     // Publish ApprovalRequested event
-    this.eventEmitter.emit(
-      ApprovalRequestedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.ApprovalRequested,
       new ApprovalRequestedEvent(approval.id, dto.tipe, dto.refId ?? null, actor.sub),
     );
 
@@ -395,8 +396,8 @@ export class FinanceService {
     }
 
     // Publish ApprovalDecided event
-    this.eventEmitter.emit(
-      ApprovalDecidedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.ApprovalDecided,
       new ApprovalDecidedEvent(
         updated.id,
         updated.tipe,
@@ -545,9 +546,24 @@ export class FinanceService {
   /**
    * Consume ProductionCompleted event
    * Auto-generate invoice Pelunasan
+   *
+   * IDEMPOTEN (§16): skip jika invoice PELUNASAN untuk order ini sudah ada —
+   * event yang dikirim dua kali tidak menghasilkan invoice ganda.
    */
   async onProductionCompleted(orderId: string): Promise<void> {
     this.logger.log(`Production completed for order ${orderId} - generating Pelunasan invoice`);
+
+    // Idempotency check: cek state DB dulu sebelum apply efek
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { orderId, jenis: 'PELUNASAN' },
+    });
+
+    if (existingInvoice) {
+      this.logger.log(
+        `Pelunasan invoice untuk order ${orderId} sudah ada (${existingInvoice.id}) — skip (idempotent no-op)`,
+      );
+      return;
+    }
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },

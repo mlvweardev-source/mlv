@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
+import { EventBusModule } from './event-bus/event-bus.module';
 import { IdentityAccessModule } from './domains/identity-access/identity-access.module';
 import { CustomerModule } from './domains/customer/customer.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
@@ -17,7 +17,9 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
-    EventEmitterModule.forRoot(),
+    // Fase 6: EventEmitterModule (in-process) digantikan EventBusModule
+    // (Redis + BullMQ, §7) — event lintas domain & lintas proses.
+    EventBusModule,
     IdentityAccessModule,
     CustomerModule,
     InventoryModule,

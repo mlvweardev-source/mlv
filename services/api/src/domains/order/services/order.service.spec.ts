@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
@@ -55,7 +55,7 @@ const mockInventoryService = {
 
 describe('OrderService', () => {
   let service: OrderService;
-  let eventEmitter: EventEmitter2;
+  let mockEventBus: { publish: jest.Mock };
 
   const mockActorOwner = {
     sub: 'user-1',
@@ -74,10 +74,17 @@ describe('OrderService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
+    mockEventBus = {
+      publish: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
-        EventEmitter2,
+        {
+          provide: EventBusService,
+          useValue: mockEventBus,
+        },
         {
           provide: InventoryService,
           useValue: mockInventoryService,
@@ -86,7 +93,6 @@ describe('OrderService', () => {
     }).compile();
 
     service = module.get<OrderService>(OrderService);
-    eventEmitter = module.get(EventEmitter2);
   });
 
   describe('createOrder', () => {

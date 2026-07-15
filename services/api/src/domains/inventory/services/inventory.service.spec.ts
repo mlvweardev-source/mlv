@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { prisma } from '@mlv/db';
 
 // Mock @mlv/db
@@ -46,23 +46,23 @@ jest.mock('@mlv/db', () => ({
 
 describe('InventoryService (Unit)', () => {
   let service: InventoryService;
-  let eventEmitter: EventEmitter2;
+  let mockEventBus: { publish: jest.Mock };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InventoryService,
         {
-          provide: EventEmitter2,
+          provide: EventBusService,
           useValue: {
-            emit: jest.fn(),
+            publish: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
     }).compile();
 
     service = module.get<InventoryService>(InventoryService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
+    mockEventBus = module.get(EventBusService);
     jest.clearAllMocks();
   });
 
@@ -228,7 +228,7 @@ describe('InventoryService (Unit)', () => {
         },
         data: { qtyReserved: 15 },
       });
-      expect(eventEmitter.emit).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalled();
     });
   });
 });

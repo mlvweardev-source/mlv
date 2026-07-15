@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CustomerService } from './customer.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { prisma } from '@mlv/db';
 import { ActorType, UserRole } from '@mlv/auth';
 
@@ -22,23 +22,21 @@ const prismaMock = prisma as any;
 
 describe('CustomerService', () => {
   let service: CustomerService;
-  let eventEmitter: EventEmitter2;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CustomerService,
         {
-          provide: EventEmitter2,
+          provide: EventBusService,
           useValue: {
-            emit: jest.fn(),
+            publish: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
     }).compile();
 
     service = module.get<CustomerService>(CustomerService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
     jest.clearAllMocks();
   });
 

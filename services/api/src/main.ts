@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { setupBullBoard } from './event-bus/bull-board.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +14,9 @@ async function bootstrap() {
       transform: true, // auto-transform payloads to DTO instances
     }),
   );
+
+  // Bull Board — monitoring queue BullMQ (§22), diamankan Basic Auth
+  setupBullBoard(app);
 
   const port = process.env.API_PORT || 3000;
   await app.listen(port);

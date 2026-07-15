@@ -5,11 +5,12 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { prisma } from '@mlv/db';
 import type { Prisma } from '@mlv/db';
 import { ActorType } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { ReserveStockDto } from '../../inventory/dto/inventory.dto';
 import {
@@ -53,7 +54,7 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    private readonly eventEmitter: EventEmitter2,
+    private readonly eventBus: EventBusService,
     private readonly inventoryService: InventoryService,
   ) {}
 
@@ -102,8 +103,8 @@ export class OrderService {
     });
 
     // Publish event
-    this.eventEmitter.emit(
-      OrderCreatedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.OrderCreated,
       new OrderCreatedEvent(order.id, order.orderNumber, order.customerId, order.createdAt),
     );
 
@@ -632,8 +633,8 @@ export class OrderService {
       });
 
       // 5. Publish event
-      this.eventEmitter.emit(
-        OrderStatusChangedEvent.eventName,
+      await this.eventBus.publish(
+        EVENT_NAMES.OrderStatusChanged,
         new OrderStatusChangedEvent(
           order.id,
           order.orderNumber,
@@ -643,10 +644,11 @@ export class OrderService {
         ),
       );
 
-      this.eventEmitter.emit(
-        OrderConfirmedEvent.eventName,
-        new OrderConfirmedEvent(order.id, order.orderNumber, order.customerId, new Date()),
-      );
+      // CATATAN Fase 6: OrderConfirmed TIDAK lagi dipublish saat checkout.
+      // Order baru "confirmed" saat DP dibayar (transisi ke ANTREAN) — §7.2.
+      // Publish di sini menyebabkan Inventory melakukan deduction dan
+      // Production generate task SEBELUM pembayaran (bug pra-Fase 6:
+      // OrderConfirmed dipublish dobel di checkout dan di DP sukses).
 
       this.logger.log(`Checkout successful for order ${order.orderNumber}`);
 
@@ -706,8 +708,8 @@ export class OrderService {
     });
 
     // Publish OrderConfirmed event — Production Domain akan trigger task generation
-    this.eventEmitter.emit(
-      OrderConfirmedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.OrderConfirmed,
       new OrderConfirmedEvent(order.id, order.orderNumber, order.customerId, new Date()),
     );
 
@@ -756,12 +758,138 @@ export class OrderService {
     });
 
     // Publish event
-    this.eventEmitter.emit(
-      OrderCancelledEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.OrderCancelled,
       new OrderCancelledEvent(order.id, order.orderNumber, order.customerId, reason, new Date()),
     );
 
     return this.getOrderById(order.id, actor);
+  }
+
+  // ==========================================
+  // Konsumsi Event (dipanggil oleh OrderEventsProcessor)
+  // ==========================================
+
+  /**
+   * Konsumen PaymentSucceeded (§7.2).
+   * - DP sukses      → status ANTREAN + publish OrderConfirmed (memicu
+   *   Production generate tasks & Inventory deduction lewat event bus).
+   * - Pelunasan sukses → status LUNAS.
+   *
+   * IDEMPOTEN (§16): cek status order di DB dulu — event yang dikirim
+   * dua kali tidak menghasilkan transisi/timeline/publish ganda.
+   */
+  async handlePaymentSucceeded(event: {
+    paymentId: string;
+    orderId: string;
+    jenis: 'DP' | 'PELUNASAN';
+    jumlah: number;
+    customerId: string;
+  }): Promise<void> {
+    const order = await prisma.order.findUnique({
+      where: { id: event.orderId },
+    });
+
+    if (!order) {
+      this.logger.warn(`Order not found: ${event.orderId}`);
+      return;
+    }
+
+    if (event.jenis === 'DP') {
+      // Idempotency: DP hanya boleh mentransisikan order yang masih
+      // menunggu pembayaran DP. Status lain = sudah diproses / tidak relevan.
+      if (order.status !== 'MENUNGGU_PEMBAYARAN_DP' && order.status !== 'DRAFT') {
+        this.logger.log(
+          `PaymentSucceeded(DP) for order ${order.orderNumber} skipped — status sudah ${order.status} (idempotent no-op)`,
+        );
+        return;
+      }
+
+      await prisma.order.update({
+        where: { id: event.orderId },
+        data: { status: 'ANTREAN' },
+      });
+
+      await prisma.orderTimelineEvent.create({
+        data: {
+          orderId: event.orderId,
+          tipeEvent: 'ORDER_CONFIRMED',
+          deskripsi: `Pembayaran DP Rp ${event.jumlah.toLocaleString()} berhasil. Order masuk antrean produksi.`,
+        },
+      });
+
+      // Publish OrderConfirmed → Production (generate tasks),
+      // Inventory (kunci reservasi → deduction), Notification (§7.2)
+      await this.eventBus.publish(
+        EVENT_NAMES.OrderConfirmed,
+        new OrderConfirmedEvent(order.id, order.orderNumber, order.customerId, new Date()),
+      );
+
+      this.logger.log(`Order ${order.orderNumber} transitioned to ANTREAN after DP payment`);
+    } else if (event.jenis === 'PELUNASAN') {
+      // Idempotency: skip jika sudah LUNAS/DIKIRIM
+      if (order.status === 'LUNAS' || order.status === 'DIKIRIM') {
+        this.logger.log(
+          `PaymentSucceeded(PELUNASAN) for order ${order.orderNumber} skipped — status sudah ${order.status} (idempotent no-op)`,
+        );
+        return;
+      }
+
+      await prisma.order.update({
+        where: { id: event.orderId },
+        data: { status: 'LUNAS' },
+      });
+
+      await prisma.orderTimelineEvent.create({
+        data: {
+          orderId: event.orderId,
+          tipeEvent: 'PELUNASAN_BAYAR',
+          deskripsi: `Pembayaran pelunasan Rp ${event.jumlah.toLocaleString()} berhasil.`,
+        },
+      });
+
+      this.logger.log(`Order ${order.orderNumber} transitioned to LUNAS after pelunasan payment`);
+    }
+  }
+
+  /**
+   * Konsumen ProductionCompleted (§4): update progres order.
+   * Status → MENUNGGU_PELUNASAN (produksi selesai, menunggu pembayaran sisa).
+   *
+   * IDEMPOTEN: skip jika status sudah MENUNGGU_PELUNASAN atau lebih lanjut.
+   */
+  async handleProductionCompleted(event: { orderId: string; orderNumber: string }): Promise<void> {
+    const order = await prisma.order.findUnique({
+      where: { id: event.orderId },
+    });
+
+    if (!order) {
+      this.logger.warn(`Order not found: ${event.orderId}`);
+      return;
+    }
+
+    const terminalStatuses = ['MENUNGGU_PELUNASAN', 'LUNAS', 'DIKIRIM', 'DIBATALKAN'];
+    if (terminalStatuses.includes(order.status)) {
+      this.logger.log(
+        `ProductionCompleted for order ${order.orderNumber} skipped — status sudah ${order.status} (idempotent no-op)`,
+      );
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: event.orderId },
+      data: { status: 'MENUNGGU_PELUNASAN' },
+    });
+
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId: event.orderId,
+        tipeEvent: 'PRODUKSI_SELESAI',
+        deskripsi: `Produksi selesai. Order menunggu pelunasan.`,
+      },
+    });
+
+    this.logger.log(`Order ${order.orderNumber} transitioned to MENUNGGU_PELUNASAN`);
   }
 
   // ==========================================
@@ -982,8 +1110,8 @@ export class OrderService {
     });
 
     // Publish event
-    this.eventEmitter.emit(
-      OrderCreatedEvent.eventName,
+    await this.eventBus.publish(
+      EVENT_NAMES.OrderCreated,
       new OrderCreatedEvent(
         newOrder.id,
         newOrder.orderNumber,
