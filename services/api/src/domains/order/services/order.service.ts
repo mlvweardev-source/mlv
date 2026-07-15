@@ -115,10 +115,7 @@ export class OrderService {
    * Staff: lihat semua. Pelanggan: lihat miliknya sendiri.
    */
   async findOrders(actor: JwtPayload): Promise<OrderListResponseDto[]> {
-    const whereClause =
-      actor.actorType === ActorType.CUSTOMER
-        ? { customerId: actor.sub }
-        : {};
+    const whereClause = actor.actorType === ActorType.CUSTOMER ? { customerId: actor.sub } : {};
 
     const orders = await prisma.order.findMany({
       where: whereClause,
@@ -167,15 +164,14 @@ export class OrderService {
     }
 
     // Cek akses
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
     // Fetch material names for each order material
-    const materialIds = [...new Set(order.items.flatMap((item) => item.materials.map((m) => m.materialId)))];
+    const materialIds = [
+      ...new Set(order.items.flatMap((item) => item.materials.map((m) => m.materialId))),
+    ];
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds } },
     });
@@ -218,10 +214,7 @@ export class OrderService {
     }
 
     // Cek akses
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -296,10 +289,7 @@ export class OrderService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -343,10 +333,7 @@ export class OrderService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -416,10 +403,7 @@ export class OrderService {
       throw new BadRequestException('Hanya order berstatus DRAFT yang bisa ditambahkan layanan');
     }
 
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -481,10 +465,7 @@ export class OrderService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -493,10 +474,7 @@ export class OrderService {
     // ==========================================
     // Checkout: DRAFT → MENUNGGU_PEMBAYARAN_DP
     // ==========================================
-    if (
-      previousStatus === 'DRAFT' &&
-      dto.status === 'MENUNGGU_PEMBAYARAN_DP'
-    ) {
+    if (previousStatus === 'DRAFT' && dto.status === 'MENUNGGU_PEMBAYARAN_DP') {
       return this.executeCheckout(order, dto, actor);
     }
 
@@ -504,10 +482,7 @@ export class OrderService {
     // Antrean: MENUNGGU_PEMBAYARAN_DP → ANTREAN
     // Publish OrderConfirmed untuk trigger Production task generation
     // ==========================================
-    if (
-      previousStatus === 'MENUNGGU_PEMBAYARAN_DP' &&
-      dto.status === 'ANTREAN'
-    ) {
+    if (previousStatus === 'MENUNGGU_PEMBAYARAN_DP' && dto.status === 'ANTREAN') {
       return this.moveToAntrean(order, actor);
     }
 
@@ -551,9 +526,7 @@ export class OrderService {
           const bom = await this.inventoryService.getBom(productType);
           bomByProductType.set(productType, bom);
         } catch (error) {
-          throw new BadRequestException(
-            `BOM untuk produk "${productType}" belum dikonfigurasi`,
-          );
+          throw new BadRequestException(`BOM untuk produk "${productType}" belum dikonfigurasi`);
         }
       }
     }
@@ -568,9 +541,7 @@ export class OrderService {
     for (const { productType, totalQty } of itemQtys) {
       const bom = bomByProductType.get(productType)!;
       for (const bomItem of bom) {
-        const existing = materialRequirements.find(
-          (r) => r.materialId === bomItem.materialId,
-        );
+        const existing = materialRequirements.find((r) => r.materialId === bomItem.materialId);
         const qtyNeeded = bomItem.qtyPerUnit * totalQty;
         if (existing) {
           existing.totalQty += qtyNeeded;
@@ -787,13 +758,7 @@ export class OrderService {
     // Publish event
     this.eventEmitter.emit(
       OrderCancelledEvent.eventName,
-      new OrderCancelledEvent(
-        order.id,
-        order.orderNumber,
-        order.customerId,
-        reason,
-        new Date(),
-      ),
+      new OrderCancelledEvent(order.id, order.orderNumber, order.customerId, reason, new Date()),
     );
 
     return this.getOrderById(order.id, actor);
@@ -950,10 +915,7 @@ export class OrderService {
     }
 
     // Cek akses
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== originalOrder.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== originalOrder.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
@@ -993,7 +955,9 @@ export class OrderService {
     });
 
     // Fetch material names for duplicated order
-    const materialIds = [...new Set(newOrder.items.flatMap((item) => item.materials.map((m) => m.materialId)))];
+    const materialIds = [
+      ...new Set(newOrder.items.flatMap((item) => item.materials.map((m) => m.materialId))),
+    ];
     const materials = await prisma.material.findMany({
       where: { id: { in: materialIds } },
     });
@@ -1020,7 +984,12 @@ export class OrderService {
     // Publish event
     this.eventEmitter.emit(
       OrderCreatedEvent.eventName,
-      new OrderCreatedEvent(newOrder.id, newOrder.orderNumber, newOrder.customerId, newOrder.createdAt),
+      new OrderCreatedEvent(
+        newOrder.id,
+        newOrder.orderNumber,
+        newOrder.customerId,
+        newOrder.createdAt,
+      ),
     );
 
     return this.mapOrderToResponse(newOrder);
@@ -1042,10 +1011,7 @@ export class OrderService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
-    if (
-      actor.actorType === ActorType.CUSTOMER &&
-      actor.sub !== order.customerId
-    ) {
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 

@@ -30,10 +30,7 @@ export class ApprovalController {
    * Hanya Manajer Produksi
    */
   @Post()
-  async createApproval(
-    @Body() dto: CreateApprovalDto,
-    @Headers('x-user') userJson: string,
-  ) {
+  async createApproval(@Body() dto: CreateApprovalDto, @Headers('x-user') userJson: string) {
     const actor: JwtPayload = JSON.parse(userJson || '{}');
     return this.financeService.createApproval(dto, actor);
   }

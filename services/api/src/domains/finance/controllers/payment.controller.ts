@@ -23,10 +23,7 @@ export class PaymentController {
    * POST /payments — Buat payment + inisiasi Midtrans
    */
   @Post()
-  async createPayment(
-    @Body() dto: CreatePaymentDto,
-    @Headers('x-user') userJson: string,
-  ) {
+  async createPayment(@Body() dto: CreatePaymentDto, @Headers('x-user') userJson: string) {
     const actor: JwtPayload = JSON.parse(userJson || '{}');
     return this.financeService.createPayment(dto, actor);
   }

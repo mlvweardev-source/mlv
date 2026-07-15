@@ -17,9 +17,7 @@ export class OrderConfirmedListener {
 
   @OnEvent(OrderConfirmedEvent.eventName)
   async handleOrderConfirmed(event: OrderConfirmedEvent) {
-    this.logger.log(
-      `Received OrderConfirmed event for order ${event.orderNumber}`,
-    );
+    this.logger.log(`Received OrderConfirmed event for order ${event.orderNumber}`);
 
     try {
       await this.productionService.handleOrderConfirmed(
@@ -27,13 +25,9 @@ export class OrderConfirmedListener {
         event.orderNumber,
         event.customerId,
       );
-      this.logger.log(
-        `Task generation completed for order ${event.orderNumber}`,
-      );
+      this.logger.log(`Task generation completed for order ${event.orderNumber}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to generate tasks for order ${event.orderNumber}: ${error}`,
-      );
+      this.logger.error(`Failed to generate tasks for order ${event.orderNumber}: ${error}`);
       // Tidak throw — event processing harus idempotent dan tidak crash subscriber lain
     }
   }

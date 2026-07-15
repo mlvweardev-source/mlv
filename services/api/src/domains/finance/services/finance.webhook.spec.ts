@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import { FinanceService } from './finance.service';
 import { OrderService } from '../../order/services/order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
@@ -113,9 +114,9 @@ describe('FinanceService - Webhook Signature Verification', () => {
       // Signature yang salah
       const invalidSignature = 'invalid_signature_wrong_hash';
 
-      await expect(
-        service.handleMidtransWebhook(payload, invalidSignature),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.handleMidtransWebhook(payload, invalidSignature)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       // Verify: tidak ada payment yang di-update
       expect(prisma.payment.update).not.toHaveBeenCalled();
@@ -150,7 +151,7 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
       // Signature yang dihitung dengan amount yang dimodifikasi
       // Server akan reject karena signature tidak match
-      const tamperedSignature = require('crypto')
+      const tamperedSignature = crypto
         .createHash('sha512')
         .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${mockServerKey}`)
         .digest('hex');
@@ -159,9 +160,9 @@ describe('FinanceService - Webhook Signature Verification', () => {
       // Karena kita tidak punya akses ke server key di test, kita test scenario lain
       const wrongSignature = 'completely_wrong_signature';
 
-      await expect(
-        service.handleMidtransWebhook(payload, wrongSignature),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.handleMidtransWebhook(payload, wrongSignature)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should reject webhook with modified transaction_id', async () => {
@@ -190,9 +191,9 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
       const wrongSignature = 'attacker_provided_signature';
 
-      await expect(
-        service.handleMidtransWebhook(payload, wrongSignature),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.handleMidtransWebhook(payload, wrongSignature)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should accept webhook with valid signature', async () => {
@@ -228,16 +229,13 @@ describe('FinanceService - Webhook Signature Verification', () => {
       };
 
       // Calculate valid signature
-      const crypto = require('crypto');
       const validSignature = crypto
         .createHash('sha512')
         .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${mockServerKey}`)
         .digest('hex');
 
       // Should not throw
-      await expect(
-        service.handleMidtransWebhook(payload, validSignature),
-      ).resolves.not.toThrow();
+      await expect(service.handleMidtransWebhook(payload, validSignature)).resolves.not.toThrow();
 
       // Verify: payment di-update
       expect(prisma.payment.update).toHaveBeenCalled();
@@ -268,7 +266,6 @@ describe('FinanceService - Webhook Signature Verification', () => {
         status_message: 'Success',
       };
 
-      const crypto = require('crypto');
       const validSignature = crypto
         .createHash('sha512')
         .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${mockServerKey}`)
@@ -293,7 +290,6 @@ describe('FinanceService - Webhook Signature Verification', () => {
         status_message: 'Success',
       };
 
-      const crypto = require('crypto');
       const validSignature = crypto
         .createHash('sha512')
         .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${mockServerKey}`)
@@ -339,7 +335,6 @@ describe('FinanceService - Webhook Signature Verification', () => {
         status_message: 'Transaction expired',
       };
 
-      const crypto = require('crypto');
       const validSignature = crypto
         .createHash('sha512')
         .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${mockServerKey}`)

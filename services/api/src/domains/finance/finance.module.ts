@@ -11,12 +11,7 @@ import { ProductionModule } from '../production/production.module';
 
 @Module({
   imports: [OrderModule, InventoryModule, ProductionModule],
-  controllers: [
-    PaymentController,
-    InvoiceController,
-    ApprovalController,
-    ProfitSharingController,
-  ],
+  controllers: [PaymentController, InvoiceController, ApprovalController, ProfitSharingController],
   providers: [FinanceService, FinanceEventListener],
   exports: [FinanceService],
 })

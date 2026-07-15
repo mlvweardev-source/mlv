@@ -20,13 +20,10 @@ export class FinanceEventListener implements OnModuleInit {
 
   onModuleInit() {
     // Listen to ProductionCompleted → generate Pelunasan invoice
-    this.eventEmitter.on(
-      ProductionCompletedEvent.eventName,
-      (event: ProductionCompletedEvent) => {
-        this.logger.log(`Received ProductionCompleted for order ${event.orderNumber}`);
-        this.financeService.onProductionCompleted(event.orderId);
-      },
-    );
+    this.eventEmitter.on(ProductionCompletedEvent.eventName, (event: ProductionCompletedEvent) => {
+      this.logger.log(`Received ProductionCompleted for order ${event.orderNumber}`);
+      this.financeService.onProductionCompleted(event.orderId);
+    });
 
     this.logger.log('FinanceEventListener registered');
   }

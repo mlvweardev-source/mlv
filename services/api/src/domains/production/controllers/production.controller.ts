@@ -13,11 +13,7 @@ import type { JwtPayload } from '@mlv/auth';
 import { AuthGuard } from '../../identity-access/guards/auth.guard';
 import { GetUser } from '../../identity-access/guards/auth.guard';
 import { ProductionService } from '../services/production.service';
-import {
-  GetTasksQueryDto,
-  UpdateTaskStatusDto,
-  AssignTaskDto,
-} from '../dto/production.dto';
+import { GetTasksQueryDto, UpdateTaskStatusDto, AssignTaskDto } from '../dto/production.dto';
 
 /**
  * Production Domain Controller
@@ -49,10 +45,7 @@ export class ProductionController {
    * - Tim Penjahit: hanya lihat task miliknya sendiri
    */
   @Get('tasks')
-  async getTasks(
-    @Query() query: GetTasksQueryDto,
-    @GetUser() actor: JwtPayload,
-  ) {
+  async getTasks(@Query() query: GetTasksQueryDto, @GetUser() actor: JwtPayload) {
     // Tim Penjahit hanya bisa lihat task miliknya sendiri
     if (actor.role === 'TIM_PENJAHIT') {
       return this.productionService.getTasks({

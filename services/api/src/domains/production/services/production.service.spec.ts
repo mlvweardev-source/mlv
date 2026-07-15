@@ -121,7 +121,15 @@ describe('ProductionService', () => {
       const routing = {
         id: 'routing-1',
         productType: 'KAOS',
-        urutanTask: ['CUTTING', 'PRINTING', 'EMBROIDERY', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+        urutanTask: [
+          'CUTTING',
+          'PRINTING',
+          'EMBROIDERY',
+          'SEWING',
+          'FINISHING',
+          'IRONING',
+          'PACKING',
+        ],
       };
 
       (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([orderItem]);
@@ -192,11 +200,7 @@ describe('ProductionService', () => {
       (prisma.productionTask.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.productionTask.count as jest.Mock).mockResolvedValue(0);
 
-      await service.updateTaskStatus(
-        'task-1',
-        { status: 'SELESAI' },
-        mockActorTimPenjahit,
-      );
+      await service.updateTaskStatus('task-1', { status: 'SELESAI' }, mockActorTimPenjahit);
 
       expect(prisma.productionTask.update).toHaveBeenCalled();
     });
@@ -218,11 +222,7 @@ describe('ProductionService', () => {
       (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue(task);
 
       await expect(
-        service.updateTaskStatus(
-          'task-1',
-          { status: 'SELESAI' },
-          mockActorTimPenjahit,
-        ),
+        service.updateTaskStatus('task-1', { status: 'SELESAI' }, mockActorTimPenjahit),
       ).rejects.toThrow(ForbiddenException);
 
       expect(prisma.productionTask.update).not.toHaveBeenCalled();
@@ -251,11 +251,7 @@ describe('ProductionService', () => {
       (prisma.productionTask.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.productionTask.count as jest.Mock).mockResolvedValue(0);
 
-      await service.updateTaskStatus(
-        'task-1',
-        { status: 'SELESAI' },
-        mockActorOwner,
-      );
+      await service.updateTaskStatus('task-1', { status: 'SELESAI' }, mockActorOwner);
 
       expect(prisma.productionTask.update).toHaveBeenCalled();
     });
@@ -297,11 +293,7 @@ describe('ProductionService', () => {
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([nextTask]);
       (prisma.productionTask.count as jest.Mock).mockResolvedValue(1);
 
-      await service.updateTaskStatus(
-        'task-1',
-        { status: 'SELESAI' },
-        mockActorOwner,
-      );
+      await service.updateTaskStatus('task-1', { status: 'SELESAI' }, mockActorOwner);
 
       // Verifikasi: Task berikutnya di-update ke DITERIMA
       expect(prisma.productionTask.update).toHaveBeenCalledWith(
@@ -353,11 +345,7 @@ describe('ProductionService', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(order);
       (prisma.orderItem.findMany as jest.Mock).mockResolvedValue(order.items);
 
-      await service.updateTaskStatus(
-        'task-6',
-        { status: 'SELESAI' },
-        mockActorOwner,
-      );
+      await service.updateTaskStatus('task-6', { status: 'SELESAI' }, mockActorOwner);
 
       // Verifikasi: ProductionCompleted event dipublish (check second call)
       const calls = mockOrderService.addTimelineEvent.mock.calls;

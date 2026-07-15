@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import { prisma } from '@mlv/db';
 import type { JwtPayload } from '@mlv/auth';
 import { ActorType, UserRole } from '@mlv/auth';
@@ -140,10 +141,7 @@ export class FinanceService {
 
     const payment = await prisma.payment.findFirst({
       where: {
-        OR: [
-          { id: paymentId },
-          { midtransOrderId: midtransOrderId },
-        ],
+        OR: [{ id: paymentId }, { midtransOrderId: midtransOrderId }],
       },
       include: { order: true },
     });
@@ -350,12 +348,7 @@ export class FinanceService {
     // Publish ApprovalRequested event
     this.eventEmitter.emit(
       ApprovalRequestedEvent.eventName,
-      new ApprovalRequestedEvent(
-        approval.id,
-        dto.tipe,
-        dto.refId ?? null,
-        actor.sub,
-      ),
+      new ApprovalRequestedEvent(approval.id, dto.tipe, dto.refId ?? null, actor.sub),
     );
 
     return approval;
@@ -584,7 +577,9 @@ export class FinanceService {
         },
       });
 
-      this.logger.log(`Created Pelunasan invoice: ${pelunasanAmount} for order ${order.orderNumber}`);
+      this.logger.log(
+        `Created Pelunasan invoice: ${pelunasanAmount} for order ${order.orderNumber}`,
+      );
     }
   }
 
@@ -592,12 +587,13 @@ export class FinanceService {
   // Helper Methods
   // ==========================================
 
-  private async initMidtransSnap(payment: any, customerName: string): Promise<MidtransSnapResponse> {
+  private async initMidtransSnap(
+    payment: any,
+    customerName: string,
+  ): Promise<MidtransSnapResponse> {
     const serverKey = this.configService.get<string>('MIDTRANS_SERVER_KEY');
     const isProduction = this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
-    const baseUrl = isProduction
-      ? 'https://app.midtrans.com'
-      : 'https://app.sandbox.midtrans.com';
+    const baseUrl = isProduction ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
 
     const orderId = `payment_${payment.id}`;
     const params = {
@@ -643,11 +639,12 @@ export class FinanceService {
   }
 
   private hashSignature(data: string): string {
-    const crypto = require('crypto');
     return crypto.createHash('sha512').update(data).digest('hex');
   }
 
-  private mapMidtransStatus(status: string): 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED' | 'CANCELLED' {
+  private mapMidtransStatus(
+    status: string,
+  ): 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED' | 'CANCELLED' {
     switch (status) {
       case 'settlement':
       case 'capture':

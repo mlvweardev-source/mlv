@@ -39,12 +39,10 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
  * Decorator: Ambil user payload dari request.
  * Contoh: @GetUser() user: JwtPayload
  */
-export const GetUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): JwtPayload => {
-    const request = ctx.switchToHttp().getRequest();
-    return request.user;
-  },
-);
+export const GetUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): JwtPayload => {
+  const request = ctx.switchToHttp().getRequest();
+  return request.user;
+});
 
 // ==========================================
 // Auth Guard (JWT Verification + RBAC)

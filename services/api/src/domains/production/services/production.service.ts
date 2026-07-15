@@ -78,9 +78,7 @@ export class ProductionService {
       await this.generateTasksForOrderItem(item, orderId, orderNumber);
     }
 
-    this.logger.log(
-      `Generated tasks for ${orderItems.length} items in order ${orderNumber}`,
-    );
+    this.logger.log(`Generated tasks for ${orderItems.length} items in order ${orderNumber}`);
   }
 
   /**
@@ -105,11 +103,11 @@ export class ProductionService {
     }
 
     // Cek apakah ada service sablon/bordir
-    const hasSablonService = item.services.some(
-      (s: any) => s.serviceType.toLowerCase().includes('sablon'),
+    const hasSablonService = item.services.some((s: any) =>
+      s.serviceType.toLowerCase().includes('sablon'),
     );
-    const hasBordirService = item.services.some(
-      (s: any) => s.serviceType.toLowerCase().includes('bordir'),
+    const hasBordirService = item.services.some((s: any) =>
+      s.serviceType.toLowerCase().includes('bordir'),
     );
 
     // Filter task sesuai services
@@ -120,9 +118,7 @@ export class ProductionService {
     });
 
     if (taskTypesToCreate.length === 0) {
-      this.logger.warn(
-        `No tasks to create for order item ${item.id} after filtering`,
-      );
+      this.logger.warn(`No tasks to create for order item ${item.id} after filtering`);
       return;
     }
 
@@ -160,17 +156,13 @@ export class ProductionService {
   /**
    * GET /production/routings/:productType
    */
-  async getRoutingByProductType(
-    productType: string,
-  ): Promise<ProductionRoutingResponseDto> {
+  async getRoutingByProductType(productType: string): Promise<ProductionRoutingResponseDto> {
     const routing = await prisma.productionRouting.findUnique({
       where: { productType },
     });
 
     if (!routing) {
-      throw new NotFoundException(
-        `Routing untuk "${productType}" tidak ditemukan`,
-      );
+      throw new NotFoundException(`Routing untuk "${productType}" tidak ditemukan`);
     }
 
     return {
@@ -221,11 +213,12 @@ export class ProductionService {
 
     // Ambil user info untuk assignedTo
     const userIds = [...new Set(tasks.map((t) => t.assignedTo).filter(Boolean))];
-    const users = userIds.length > 0
-      ? await prisma.user.findMany({
-          where: { id: { in: userIds as string[] } },
-        })
-      : [];
+    const users =
+      userIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: userIds as string[] } },
+          })
+        : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     return tasks.map((task) => ({
@@ -235,11 +228,13 @@ export class ProductionService {
       sequence: task.sequence,
       status: task.status,
       assignedTo: task.assignedTo,
-      assignedToUser: task.assignedTo ? {
-        id: task.assignedTo,
-        nama: userMap.get(task.assignedTo)?.nama ?? '',
-        email: userMap.get(task.assignedTo)?.email ?? '',
-      } : null,
+      assignedToUser: task.assignedTo
+        ? {
+            id: task.assignedTo,
+            nama: userMap.get(task.assignedTo)?.nama ?? '',
+            email: userMap.get(task.assignedTo)?.email ?? '',
+          }
+        : null,
       startedAt: task.startedAt,
       completedAt: task.completedAt,
       createdAt: task.createdAt,
@@ -329,9 +324,7 @@ export class ProductionService {
   ): Promise<ProductionTaskResponseDto> {
     // RBAC: hanya Owner & Manajer Produksi
     if (actor.role !== 'OWNER' && actor.role !== 'MANAJER_PRODUKSI') {
-      throw new ForbiddenException(
-        'Hanya Owner dan Manajer Produksi yang bisa menugaskan task',
-      );
+      throw new ForbiddenException('Hanya Owner dan Manajer Produksi yang bisa menugaskan task');
     }
 
     // Verifikasi user target ada dan rolenya TIM_PENJAHIT
@@ -408,9 +401,7 @@ export class ProductionService {
     // RBAC untuk Tim Penjahit
     if (actor.role === 'TIM_PENJAHIT') {
       if (task.assignedTo !== actor.sub) {
-        throw new ForbiddenException(
-          'Anda hanya bisa mengupdate task yang ditugaskan kepada Anda',
-        );
+        throw new ForbiddenException('Anda hanya bisa mengupdate task yang ditugaskan kepada Anda');
       }
     }
 
@@ -460,10 +451,7 @@ export class ProductionService {
   /**
    * Validasi transisi status.
    */
-  private validateStatusTransition(
-    currentStatus: TaskStatus,
-    newStatus: TaskStatus,
-  ): void {
+  private validateStatusTransition(currentStatus: TaskStatus, newStatus: TaskStatus): void {
     // DITERIMA -> SEDANG_DILAKSANAKAN
     // MENUNGGU -> SEDANG_DILAKSANAKAN
     // SEDANG_DILAKSANAKAN -> SELESAI
@@ -552,10 +540,7 @@ export class ProductionService {
    * Cek apakah semua task untuk satu order item sudah selesai.
    * Jika ya, publish ProductionCompleted.
    */
-  private async checkProductionCompletion(
-    orderItemId: string,
-    orderId: string,
-  ): Promise<void> {
+  private async checkProductionCompletion(orderItemId: string, orderId: string): Promise<void> {
     const pendingTasks = await prisma.productionTask.count({
       where: {
         orderItemId,
@@ -598,12 +583,7 @@ export class ProductionService {
         // Publish ProductionCompleted
         this.eventEmitter.emit(
           ProductionCompletedEvent.eventName,
-          new ProductionCompletedEvent(
-            orderId,
-            order.orderNumber,
-            order.customerId,
-            new Date(),
-          ),
+          new ProductionCompletedEvent(orderId, order.orderNumber, order.customerId, new Date()),
         );
 
         this.logger.log(`Production completed for order ${order.orderNumber}`);

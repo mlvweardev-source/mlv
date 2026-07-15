@@ -204,13 +204,20 @@ describe('InventoryService (Concurrency Integration)', () => {
       await prisma.stockBalance.upsert({
         where: { materialId_warehouseId: { materialId: mat.id, warehouseId: defaultWarehouseId } },
         update: { qtyAvailable: 100, qtyReserved: 0 },
-        create: { materialId: mat.id, warehouseId: defaultWarehouseId, qtyAvailable: 100, qtyReserved: 0 },
+        create: {
+          materialId: mat.id,
+          warehouseId: defaultWarehouseId,
+          qtyAvailable: 100,
+          qtyReserved: 0,
+        },
       });
     }
 
     // Setel material 3 dengan stok sangat kecil (hanya 5, tapi kita minta 15 nanti)
     await prisma.stockBalance.update({
-      where: { materialId_warehouseId: { materialId: materials[2].id, warehouseId: defaultWarehouseId } },
+      where: {
+        materialId_warehouseId: { materialId: materials[2].id, warehouseId: defaultWarehouseId },
+      },
       data: { qtyAvailable: 5, qtyReserved: 0 },
     });
 
@@ -220,10 +227,18 @@ describe('InventoryService (Concurrency Integration)', () => {
 
     try {
       // Reserve material 1 & 2 (sukses)
-      const res1 = await service.reserveStock({ orderId: testOrderIdV2, materialId: materials[0].id, qty: 5 });
+      const res1 = await service.reserveStock({
+        orderId: testOrderIdV2,
+        materialId: materials[0].id,
+        qty: 5,
+      });
       successfulReservations.push(res1.id);
 
-      const res2 = await service.reserveStock({ orderId: testOrderIdV2, materialId: materials[1].id, qty: 5 });
+      const res2 = await service.reserveStock({
+        orderId: testOrderIdV2,
+        materialId: materials[1].id,
+        qty: 5,
+      });
       successfulReservations.push(res2.id);
 
       // Reserve material 3 - INI AKAN GAGAL karena minta 15 tapi cuma ada 5
@@ -250,10 +265,14 @@ describe('InventoryService (Concurrency Integration)', () => {
 
     // VERIFIKASI: Stok balance material 1 & 2 harus kembali ke 0 reserved
     const balance1 = await prisma.stockBalance.findUnique({
-      where: { materialId_warehouseId: { materialId: materials[0].id, warehouseId: defaultWarehouseId } },
+      where: {
+        materialId_warehouseId: { materialId: materials[0].id, warehouseId: defaultWarehouseId },
+      },
     });
     const balance2 = await prisma.stockBalance.findUnique({
-      where: { materialId_warehouseId: { materialId: materials[1].id, warehouseId: defaultWarehouseId } },
+      where: {
+        materialId_warehouseId: { materialId: materials[1].id, warehouseId: defaultWarehouseId },
+      },
     });
 
     expect(balance1!.qtyReserved).toBe(0);

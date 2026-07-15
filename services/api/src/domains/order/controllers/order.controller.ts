@@ -218,10 +218,7 @@ export class OrderController {
   @Post(':id/duplicate')
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
   @AllowCustomer()
-  async duplicateOrder(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: { user: JwtPayload },
-  ) {
+  async duplicateOrder(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: JwtPayload }) {
     return this.orderService.duplicateOrder(id, req.user);
   }
 
@@ -235,10 +232,7 @@ export class OrderController {
   @Get(':id/timeline')
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
   @AllowCustomer()
-  async getTimeline(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: { user: JwtPayload },
-  ) {
+  async getTimeline(@Param('id', ParseUUIDPipe) id: string, @Req() req: { user: JwtPayload }) {
     return this.orderService.getTimeline(id, req.user);
   }
 }

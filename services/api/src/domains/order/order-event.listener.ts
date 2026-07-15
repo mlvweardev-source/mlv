@@ -20,22 +20,19 @@ export class OrderEventListener implements OnModuleInit {
 
   onModuleInit() {
     // Listen to PaymentSucceeded → transition order status
-    this.eventEmitter.on(
-      PaymentSucceededEvent.eventName,
-      async (event: PaymentSucceededEvent) => {
-        this.logger.log(
-          `Received PaymentSucceeded for order ${event.orderId}, jenis: ${event.jenis}`,
-        );
+    this.eventEmitter.on(PaymentSucceededEvent.eventName, async (event: PaymentSucceededEvent) => {
+      this.logger.log(
+        `Received PaymentSucceeded for order ${event.orderId}, jenis: ${event.jenis}`,
+      );
 
-        if (event.jenis === 'DP') {
-          // DP berhasil → transition ke ANTREAN dan publish OrderConfirmed
-          await this.handleDpPaymentSucceeded(event);
-        } else if (event.jenis === 'PELUNASAN') {
-          // Pelunasan berhasil → transition ke LUNAS
-          await this.handlePelunasanPaymentSucceeded(event);
-        }
-      },
-    );
+      if (event.jenis === 'DP') {
+        // DP berhasil → transition ke ANTREAN dan publish OrderConfirmed
+        await this.handleDpPaymentSucceeded(event);
+      } else if (event.jenis === 'PELUNASAN') {
+        // Pelunasan berhasil → transition ke LUNAS
+        await this.handlePelunasanPaymentSucceeded(event);
+      }
+    });
 
     this.logger.log('OrderEventListener registered');
   }

@@ -112,10 +112,7 @@ describe('OrderService', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
       (prisma.material.findMany as jest.Mock).mockResolvedValue([]);
 
-      const result = await service.createOrder(
-        { customerId },
-        mockActorOwner as any,
-      );
+      const result = await service.createOrder({ customerId }, mockActorOwner as any);
 
       expect(result).toBeDefined();
       expect(result.id).toBe('order-1');
@@ -147,35 +144,35 @@ describe('OrderService', () => {
         { id: 'order-2', orderNumber: 'MLV-002', customerId: 'c2', status: 'DRAFT' },
       ];
 
-      (prisma.order.findMany as jest.Mock).mockResolvedValue(mockOrders.map(o => ({
-        ...o,
-        deadline: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        _count: { items: 1 },
-      })));
+      (prisma.order.findMany as jest.Mock).mockResolvedValue(
+        mockOrders.map((o) => ({
+          ...o,
+          deadline: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          _count: { items: 1 },
+        })),
+      );
 
       const result = await service.findOrders(mockActorOwner as any);
 
       expect(result).toHaveLength(2);
-      expect(prisma.order.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
-      );
+      expect(prisma.order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
     });
 
     it('should return only own orders for customer', async () => {
-      const mockOrders = [
-        { id: 'order-1', customerId: 'customer-1', status: 'DRAFT' },
-      ];
+      const mockOrders = [{ id: 'order-1', customerId: 'customer-1', status: 'DRAFT' }];
 
-      (prisma.order.findMany as jest.Mock).mockResolvedValue(mockOrders.map(o => ({
-        ...o,
-        orderNumber: 'MLV-001',
-        deadline: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        _count: { items: 1 },
-      })));
+      (prisma.order.findMany as jest.Mock).mockResolvedValue(
+        mockOrders.map((o) => ({
+          ...o,
+          orderNumber: 'MLV-001',
+          deadline: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          _count: { items: 1 },
+        })),
+      );
 
       const result = await service.findOrders(mockActorCustomer as any);
 
@@ -242,17 +239,17 @@ describe('OrderService', () => {
         orderNumber: 'MLV-001',
         status: 'DRAFT',
         customerId: 'customer-1',
-        items: [{
-          id: 'item-1',
-          productType: 'UnknownProduct',
-          sizes: [{ qty: 1 }],
-        }],
+        items: [
+          {
+            id: 'item-1',
+            productType: 'UnknownProduct',
+            sizes: [{ qty: 1 }],
+          },
+        ],
       };
 
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
-      mockInventoryService.getBom.mockRejectedValue(
-        new NotFoundException('BOM tidak ditemukan'),
-      );
+      mockInventoryService.getBom.mockRejectedValue(new NotFoundException('BOM tidak ditemukan'));
 
       await expect(
         service.updateStatus(
@@ -325,8 +322,7 @@ describe('OrderService', () => {
       releaseStockSpy.mockResolvedValue({ id: 'released' } as any);
 
       // reserveStock sukses semua
-      jest.spyOn(mockInventoryService, 'reserveStock')
-        .mockResolvedValue({ id: 'res-1' } as any);
+      jest.spyOn(mockInventoryService, 'reserveStock').mockResolvedValue({ id: 'res-1' } as any);
 
       // Mock $transaction untuk sukses
       (prisma.$transaction as jest.Mock).mockResolvedValue({});
@@ -336,23 +332,23 @@ describe('OrderService', () => {
         orderNumber: 'MLV-001',
         status: 'DRAFT',
         customerId: 'customer-1',
-        items: [{
-          id: 'item-1',
-          productType: 'Kaos',
-          basePriceSnapshot: 50000,
-          sizes: [{ qty: 5 }],
-          designs: [],
-          materials: [],
-          services: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }],
+        items: [
+          {
+            id: 'item-1',
+            productType: 'Kaos',
+            basePriceSnapshot: 50000,
+            sizes: [{ qty: 5 }],
+            designs: [],
+            materials: [],
+            services: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
         timeline: [],
       };
 
-      const bomKaos = [
-        { materialId: 'kain-id', material: { nama: 'Kain' }, qtyPerUnit: 2.3 },
-      ];
+      const bomKaos = [{ materialId: 'kain-id', material: { nama: 'Kain' }, qtyPerUnit: 2.3 }];
 
       const checkedOutOrder = {
         ...mockOrder,
@@ -389,17 +385,19 @@ describe('OrderService', () => {
         customerId: 'customer-1',
         status: 'DRAFT',
         deadline: null,
-        items: [{
-          id: 'item-1',
-          productType: 'Kaos',
-          basePriceSnapshot: 50000,
-          sizes: [],
-          designs: [],
-          materials: [],
-          services: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }],
+        items: [
+          {
+            id: 'item-1',
+            productType: 'Kaos',
+            basePriceSnapshot: 50000,
+            sizes: [],
+            designs: [],
+            materials: [],
+            services: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
         timeline: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -422,17 +420,17 @@ describe('OrderService', () => {
         timeline: [],
       });
 
-      await expect(
-        service.getOrderById('order-1', mockActorCustomer as any),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.getOrderById('order-1', mockActorCustomer as any)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw NotFoundException for non-existent order', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(
-        service.getOrderById('invalid', mockActorOwner as any),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getOrderById('invalid', mockActorOwner as any)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -466,10 +464,12 @@ describe('OrderService', () => {
       (prisma.order.count as jest.Mock).mockResolvedValue(1);
       (prisma.order.create as jest.Mock).mockResolvedValue({
         ...newOrder,
-        items: [{
-          ...originalOrder.items[0],
-          sizes: originalOrder.items[0].sizes,
-        }],
+        items: [
+          {
+            ...originalOrder.items[0],
+            sizes: originalOrder.items[0].sizes,
+          },
+        ],
         timeline: [],
       });
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
@@ -521,9 +521,9 @@ describe('OrderService', () => {
         timeline: [],
       });
 
-      await expect(
-        service.getOrderById('order-1', mockActorCustomer as any),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.getOrderById('order-1', mockActorCustomer as any)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

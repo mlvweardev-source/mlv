@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Post,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Param, Post, ParseUUIDPipe } from '@nestjs/common';
 import { FinanceService } from '../services/finance.service';
 
 @Controller('invoices')
