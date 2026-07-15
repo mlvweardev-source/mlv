@@ -8,97 +8,84 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ShippingService } from '../services/shipping.service';
 import { CreateShipmentDto, UpdateShipmentDto } from '../dto/shipping.dto';
 import { AuthGuard, Roles, Public } from '../../identity-access/guards/auth.guard';
 import { UserRole } from '@mlv/auth';
-import type { JwtPayload } from '@mlv/auth';
 
 /**
- * Shipping Controller — §8 API Contract
+ * Shipping Controller — kontrak §8
  *
- * RBAC (§5.1):
- * - Owner & Manajer Produksi: full akses POST / PATCH /shipments
- * - Staff lain & Customer: tidak punya akses
+ * RBAC (§5.1): Owner & Manajer Produksi full akses staff endpoints.
+ * Tim Penjahit: TIDAK ada akses. Pelanggan: hanya endpoint tracking publik.
  *
- * Public endpoint (§8):
- * - GET /shipments/track/:token — tracking publik via token unik
+ * Tracking publik (§8 + keputusan Fase 7 #4):
+ * `GET /shipments/:token/track` — param adalah TOKEN UNIK acak
+ * (bukan orderId polos yang bisa ditebak/di-enumerate). Token
+ * di-generate saat shipment dibuat dan dibagikan ke pelanggan.
  */
-@Controller()
+@Controller('shipments')
 @UseGuards(AuthGuard)
 export class ShippingController {
   constructor(private readonly shippingService: ShippingService) {}
 
+  // ==========================================
+  // Staff endpoints (Owner & Manajer Produksi)
+  // ==========================================
+
   /**
    * POST /shipments — Buat shipment baru.
-   * Gate: order.status harus LUNAS.
+   * Gate: order.status harus LUNAS (divalidasi di service via OrderService).
    */
-  @Post('shipments')
+  @Post()
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
   @HttpCode(HttpStatus.CREATED)
-  async createShipment(
-    @Body() dto: CreateShipmentDto,
-    @Param() _params: unknown,
-    req: { user: JwtPayload },
-  ) {
+  async createShipment(@Body() dto: CreateShipmentDto) {
     return this.shippingService.createShipment(dto);
   }
 
   /**
-   * PATCH /shipments/:id — Update shipment.
+   * GET /shipments — Daftar shipment.
    */
-  @Patch('shipments/:id')
+  @Get()
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
-  async updateShipment(
-    @Param('id') id: string,
-    @Body() dto: UpdateShipmentDto,
-    @Param() _params: unknown,
-    req: { user: JwtPayload },
-  ) {
-    return this.shippingService.updateShipment(id, dto);
-  }
-
-  /**
-   * GET /shipments — Daftar shipment (staff only).
-   */
-  @Get('shipments')
-  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
-  async findShipments(@Param() _params: unknown, req: { user: JwtPayload }) {
+  async findShipments() {
     return this.shippingService.findShipments();
   }
 
-  /**
-   * GET /shipments/:id — Detail shipment.
-   */
-  @Get('shipments/:id')
-  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
-  async getShipmentById(@Param('id') id: string, @Param() _params: unknown, req: { user: JwtPayload }) {
-    return this.shippingService.getShipmentById(id);
-  }
-
   // ==========================================
-  // Public Tracking Endpoints (§8)
+  // Public tracking (§8) — HARUS di atas route :id
+  // agar `/:token/track` tidak tertelan `GET /shipments/:id`
   // ==========================================
 
   /**
-   * GET /shipments/track/:token — Tracking publik via token unik.
-   * Tidak memerlukan auth. Hanya return info minimal.
+   * GET /shipments/:token/track — Tracking publik via token unik.
+   * Tanpa auth. Response minimal: status, kurir, resi, tanggal.
+   * TIDAK ada harga/alamat/data pelanggan. Token salah → 404.
    */
-  @Get('shipments/track/:token')
+  @Get(':token/track')
   @Public()
-  async publicTrackingByToken(@Param('token') token: string) {
+  async publicTracking(@Param('token', ParseUUIDPipe) token: string) {
     return this.shippingService.publicTracking(token);
   }
 
   /**
-   * GET /shipments/:orderId/track — Tracking publik via order ID.
-   * Endpoint ini sesuai kontrak §8 PRD.
-   * Tidak memerlukan auth.
+   * GET /shipments/:id — Detail shipment (staff).
    */
-  @Get('shipments/:orderId/track')
-  @Public()
-  async publicTrackingByOrderId(@Param('orderId') orderId: string) {
-    return this.shippingService.publicTrackingByOrderId(orderId);
+  @Get(':id')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async getShipmentById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.shippingService.getShipmentById(id);
+  }
+
+  /**
+   * PATCH /shipments/:id — Update shipment (resi/kurir/status/biaya/alamat).
+   */
+  @Patch(':id')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async updateShipment(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateShipmentDto) {
+    return this.shippingService.updateShipment(id, dto);
   }
 }

@@ -183,4 +183,77 @@ describe('OrderService - Event Consumer Idempotency (§16)', () => {
       expect(prisma.orderTimelineEvent.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('handleShipmentCreated (Fase 7)', () => {
+    const shipmentEvent = {
+      shipmentId: 'ship-1',
+      orderId: 'order-1',
+      orderNumber: 'MLV-001',
+      kurir: 'JNE',
+      trackingToken: 'token-abc',
+      createdAt: new Date(),
+    };
+
+    it('should transition LUNAS → DIKIRIM on first delivery', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'LUNAS',
+      });
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-1' },
+        data: { status: 'DIKIRIM' },
+      });
+      expect(prisma.orderTimelineEvent.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('should be a NO-OP on duplicate delivery (already DIKIRIM)', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'DIKIRIM', // <-- state DB menunjukkan sudah diproses
+      });
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+      expect(prisma.orderTimelineEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('should apply effect EXACTLY ONCE when the same event is delivered twice', async () => {
+      // Delivery 1: status masih LUNAS
+      (prisma.order.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'LUNAS',
+      });
+      // Delivery 2: status sudah DIKIRIM (efek delivery 1)
+      (prisma.order.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'DIKIRIM',
+      });
+
+      await service.handleShipmentCreated(shipmentEvent);
+      await service.handleShipmentCreated(shipmentEvent); // duplikat
+
+      expect(prisma.order.update).toHaveBeenCalledTimes(1);
+      expect(prisma.orderTimelineEvent.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT transition when order is not yet LUNAS (guard)', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'MLV-001',
+        status: 'MENUNGGU_PELUNASAN',
+      });
+
+      await service.handleShipmentCreated(shipmentEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+  });
 });

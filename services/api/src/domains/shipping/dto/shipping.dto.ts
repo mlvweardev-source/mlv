@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, MinLength, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, MinLength, Min } from 'class-validator';
 import { ShipmentStatus } from '@mlv/db';
 
 export class CreateShipmentDto {
@@ -8,30 +8,32 @@ export class CreateShipmentDto {
 
   @IsString()
   @MinLength(1)
-  kurir!: string; // Nama kurir: JNE, SiCepat, J&T, dll.
+  kurir!: string; // Nama kurir: JNE, SiCepat, J&T, dll. (resi manual, bukan API kurir)
 
   @IsOptional()
   @IsString()
-  noResi?: string; // Nomor resi — optional saat create, input manual setelah handed over
+  noResi?: string; // Nomor resi — opsional saat create, diinput setelah handed over
 
   @IsOptional()
   @IsString()
-  alamatPengiriman?: string; // Override alamat customer jika berbeda
+  alamatPengiriman?: string; // Override alamat customer jika tujuan kirim berbeda
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  biayaKirim?: number; // Informasional saja, TIDAK diintegrasikan ke Finance
+  biayaKirim?: number; // INFORMASIONAL saja — TIDAK diintegrasikan ke Finance/invoice
 }
 
 export class UpdateShipmentDto {
   @IsOptional()
   @IsString()
-  noResi?: string; // Update nomor resi setelah handed over
+  @MinLength(1)
+  noResi?: string; // Update nomor resi setelah handed over ke kurir
 
   @IsOptional()
   @IsString()
-  kurir?: string; // Update kurir jika berubah
+  @MinLength(1)
+  kurir?: string;
 
   @IsOptional()
   @IsNumber()
@@ -40,11 +42,11 @@ export class UpdateShipmentDto {
 
   @IsOptional()
   @IsString()
-  alamatPengiriman?: string; // Update alamat jika berubah
+  alamatPengiriman?: string;
 
   @IsOptional()
-  @IsString()
-  status?: ShipmentStatus; // Update status pengiriman
+  @IsEnum(ShipmentStatus)
+  status?: ShipmentStatus; // DICATAT / DIKIRIM / DALAM_TRANSIT / DITERIMA
 }
 
 export class CreateShipmentResponseDto {
@@ -55,16 +57,20 @@ export class CreateShipmentResponseDto {
   status!: ShipmentStatus;
   alamatPengiriman!: string | null;
   biayaKirim!: number | null;
-  trackingToken!: string;
+  trackingToken!: string; // dibagikan staff ke pelanggan untuk tracking publik
   shippedAt!: Date | null;
   deliveredAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
 
+/**
+ * Response tracking PUBLIK — hanya info minimal (§8, keputusan Fase 7 #4).
+ * TIDAK memuat: harga/biaya kirim, alamat, data pelanggan, orderId, token.
+ */
 export class PublicTrackingResponseDto {
   orderNumber!: string;
-  status!: string;
+  status!: string; // label human-readable, bukan enum internal
   kurir!: string;
   noResi!: string | null;
   shippedAt!: Date | null;

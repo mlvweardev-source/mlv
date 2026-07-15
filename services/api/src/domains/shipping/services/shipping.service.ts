@@ -1,14 +1,9 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { prisma } from '@mlv/db';
+import type { ShipmentStatus } from '@mlv/db';
+import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { OrderService } from '../../order/services/order.service';
-import { EVENT_NAMES } from '@mlv/types';
-import { ShipmentStatus } from '@mlv/db';
 import {
   CreateShipmentDto,
   UpdateShipmentDto,
@@ -20,12 +15,18 @@ import { ShipmentCreatedEvent, ShipmentDeliveredEvent } from '../events/shipping
 /**
  * Shipping Domain Service
  *
- * Responsibility: Kurir, resi, dan status pengiriman.
+ * Responsibility: Kurir, resi, dan status pengiriman (§4).
+ * Resi MANUAL — staff input nama kurir + no resi setelah barang
+ * diserahkan fisik ke kurir. BUKAN integrasi API kurir riil.
  *
  * DDD Boundary (§4.1):
- * - Membaca data Order: lewat OrderService (bukan query langsung ke tabel Order)
- * - Transisi status Order: lewat event (ShipmentCreated → Order Events Processor)
- * - Update status Shipping: langsung di sini
+ * - Baca data Order (status, orderNumber, alamat customer): HANYA lewat
+ *   OrderService.getOrderByIdInternal() — tidak ada query ke tabel
+ *   orders/customers dari sini.
+ * - Transisi status Order → DIKIRIM: lewat event ShipmentCreated
+ *   (BullMQ → OrderEventsProcessor), bukan panggilan langsung.
+ * - biaya_kirim INFORMASIONAL saja — TIDAK diintegrasikan ke
+ *   Finance/invoice (di luar scope, closed di Fase 5).
  */
 @Injectable()
 export class ShippingService {
@@ -37,17 +38,19 @@ export class ShippingService {
   ) {}
 
   // ==========================================
-  // Shipment CRUD
+  // Shipment CRUD (staff)
   // ==========================================
 
   /**
    * POST /shipments — Buat shipment baru.
    *
-   * Gate: Tolak jika order.status belum LUNAS.
-   * Validasi lewat OrderService (DDD boundary).
+   * GATE: tolak jika order.status belum LUNAS — validasi lewat
+   * OrderService (DDD boundary), bukan baca tabel Order langsung.
+   * Alamat default dari customers.alamat (via OrderService), bisa
+   * di-override lewat dto.alamatPengiriman.
    */
   async createShipment(dto: CreateShipmentDto): Promise<CreateShipmentResponseDto> {
-    // 1. Validasi order ada dan status LUNAS (via OrderService — DDD boundary)
+    // 1. Validasi order ada + status LUNAS (via OrderService — DDD boundary)
     const order = await this.orderService.getOrderByIdInternal(dto.orderId);
 
     if (!order) {
@@ -61,7 +64,7 @@ export class ShippingService {
       );
     }
 
-    // 2. Cek apakah sudah ada shipment untuk order ini
+    // 2. Satu shipment per order
     const existingShipment = await prisma.shipment.findUnique({
       where: { orderId: dto.orderId },
     });
@@ -70,7 +73,7 @@ export class ShippingService {
       throw new BadRequestException('Shipment untuk order ini sudah ada');
     }
 
-    // 3. Buat shipment
+    // 3. Buat shipment — trackingToken di-generate otomatis (uuid, kolom unique)
     const shipment = await prisma.shipment.create({
       data: {
         orderId: dto.orderId,
@@ -83,9 +86,9 @@ export class ShippingService {
       },
     });
 
-    // 4. Publish ShipmentCreated event
-    //    - Order Events Processor akan konsumsi dan transisi order → DIKIRIM
-    //    - Notification akan kirim notifikasi ke customer
+    // 4. Publish ShipmentCreated SETELAH commit (pola Fase 6):
+    //    - order-events → OrderEventsProcessor transisi order → DIKIRIM
+    //    - notification-events → subscriber umum
     await this.eventBus.publish(
       EVENT_NAMES.ShipmentCreated,
       new ShipmentCreatedEvent(
@@ -106,7 +109,8 @@ export class ShippingService {
   }
 
   /**
-   * PATCH /shipments/:id — Update shipment.
+   * PATCH /shipments/:id — Update shipment (resi, kurir, status, dll).
+   * Transisi status → DITERIMA menerbitkan ShipmentDelivered.
    */
   async updateShipment(id: string, dto: UpdateShipmentDto): Promise<CreateShipmentResponseDto> {
     const shipment = await prisma.shipment.findUnique({
@@ -117,10 +121,8 @@ export class ShippingService {
       throw new NotFoundException('Shipment tidak ditemukan');
     }
 
-    // Track status changes for publishing events
     const previousStatus = shipment.status;
 
-    // Update fields
     const updated = await prisma.shipment.update({
       where: { id },
       data: {
@@ -129,19 +131,16 @@ export class ShippingService {
         ...(dto.biayaKirim !== undefined && { biayaKirim: dto.biayaKirim }),
         ...(dto.alamatPengiriman !== undefined && { alamatPengiriman: dto.alamatPengiriman }),
         ...(dto.status !== undefined && { status: dto.status }),
-        // Auto-set shippedAt when status transitions to DIKIRIM
+        // Auto-set timestamp saat transisi status
         ...(dto.status === 'DIKIRIM' && !shipment.shippedAt && { shippedAt: new Date() }),
-        // Auto-set deliveredAt when status transitions to DITERIMA
         ...(dto.status === 'DITERIMA' && !shipment.deliveredAt && { deliveredAt: new Date() }),
       },
     });
 
-    // Publish events for status transitions
+    // Publish ShipmentDelivered saat transisi → DITERIMA.
+    // orderNumber diambil via OrderService (DDD boundary §4.1).
     if (dto.status === 'DITERIMA' && previousStatus !== 'DITERIMA') {
-      const order = await prisma.order.findUnique({
-        where: { id: shipment.orderId },
-      });
-
+      const order = await this.orderService.getOrderByIdInternal(shipment.orderId);
       if (order) {
         await this.eventBus.publish(
           EVENT_NAMES.ShipmentDelivered,
@@ -167,7 +166,7 @@ export class ShippingService {
   }
 
   /**
-   * GET /shipments/:id — Detail shipment.
+   * GET /shipments/:id — Detail shipment (staff only).
    */
   async getShipmentById(id: string): Promise<CreateShipmentResponseDto> {
     const shipment = await prisma.shipment.findUnique({
@@ -182,64 +181,32 @@ export class ShippingService {
   }
 
   // ==========================================
-  // Public Tracking (§8)
+  // Public Tracking (§8 — via token unik)
   // ==========================================
 
   /**
-   * GET /shipments/track/:token — Tracking publik via token unik.
-   * Tidak memerlukan auth. Hanya return info minimal (tidak sensitif).
+   * GET /shipments/:token/track — Tracking publik via TOKEN UNIK.
+   *
+   * Keputusan Fase 7 #4: BUKAN via orderId polos yang bisa ditebak —
+   * token acak (uuid) di-generate per shipment saat create.
+   * Response hanya info minimal: TIDAK ada harga, alamat, atau data
+   * pelanggan (ini endpoint publik tanpa auth).
+   * Token salah → 404 tanpa membocorkan apakah order-nya ada.
    */
   async publicTracking(token: string): Promise<PublicTrackingResponseDto> {
     const shipment = await prisma.shipment.findUnique({
       where: { trackingToken: token },
-      include: {
-        order: {
-          select: {
-            orderNumber: true,
-          },
-        },
-      },
     });
 
     if (!shipment) {
       throw new NotFoundException('Tracking tidak ditemukan');
     }
 
-    // Return minimal public info — no prices, no customer data
-    return {
-      orderNumber: shipment.order.orderNumber,
-      status: this.getPublicStatusLabel(shipment.status),
-      kurir: shipment.kurir,
-      noResi: shipment.noResi,
-      shippedAt: shipment.shippedAt,
-      deliveredAt: shipment.deliveredAt,
-      lastUpdate: shipment.updatedAt,
-    };
-  }
-
-  /**
-   * GET /shipments/order/:orderId/track — Alias untuk public tracking via orderId.
-   * Ini endpoint publik yang disebut di §8 PRD.
-   * Digunakan untuk customer tracking page (bukan implementasi web, hanya API contract).
-   */
-  async publicTrackingByOrderId(orderId: string): Promise<PublicTrackingResponseDto> {
-    const shipment = await prisma.shipment.findUnique({
-      where: { orderId },
-      include: {
-        order: {
-          select: {
-            orderNumber: true,
-          },
-        },
-      },
-    });
-
-    if (!shipment) {
-      throw new NotFoundException('Tracking tidak ditemukan untuk order ini');
-    }
+    // orderNumber via OrderService (DDD boundary §4.1)
+    const order = await this.orderService.getOrderByIdInternal(shipment.orderId);
 
     return {
-      orderNumber: shipment.order.orderNumber,
+      orderNumber: order?.orderNumber ?? '-',
       status: this.getPublicStatusLabel(shipment.status),
       kurir: shipment.kurir,
       noResi: shipment.noResi,
@@ -254,7 +221,9 @@ export class ShippingService {
   // ==========================================
 
   /**
-   * Map Prisma Shipment to response DTO.
+   * Map Prisma Shipment ke response DTO staff.
+   * CATATAN: trackingToken disertakan di response staff (untuk
+   * dibagikan ke pelanggan), TIDAK pernah muncul di response publik.
    */
   private mapToResponse(shipment: {
     id: string;
@@ -287,7 +256,7 @@ export class ShippingService {
   }
 
   /**
-   * Get human-readable status label for public tracking.
+   * Label status human-readable untuk tracking publik.
    */
   private getPublicStatusLabel(status: ShipmentStatus): string {
     switch (status) {

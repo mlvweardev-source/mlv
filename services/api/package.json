@@ -12,6 +12,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "demo:cascade": "ts-node scripts/demo-cascade.ts",
+    "demo:shipping": "ts-node scripts/demo-shipping.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {

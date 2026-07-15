@@ -651,7 +651,7 @@ describe('OrderService', () => {
         status: 'LUNAS',
         orderNumber: 'MLV-20260715-0001',
         customerId: 'cust-1',
-        customer: { alamat: 'Jl.测试 123' },
+        customer: { alamat: 'Jl. Merdeka No. 123, Bandung' },
       };
 
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
@@ -663,7 +663,7 @@ describe('OrderService', () => {
         status: 'LUNAS',
         orderNumber: 'MLV-20260715-0001',
         customerId: 'cust-1',
-        alamat: 'Jl.测试 123',
+        alamat: 'Jl. Merdeka No. 123, Bandung',
       });
     });
 

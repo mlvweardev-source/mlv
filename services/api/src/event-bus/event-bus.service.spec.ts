@@ -71,6 +71,41 @@ describe('EventBusService (Unit)', () => {
     expect(queueMocks[QUEUES.NOTIFICATION_EVENTS].add).toHaveBeenCalled();
   });
 
+  it('should route ShipmentCreated to order-events AND notification-events (§7.1 Fase 7)', async () => {
+    const payload = {
+      shipmentId: 'ship-1',
+      orderId: 'order-1',
+      orderNumber: 'MLV-001',
+      kurir: 'JNE',
+      trackingToken: 'token-abc',
+    };
+
+    await service.publish(EVENT_NAMES.ShipmentCreated, payload);
+
+    // Order Domain konsumsi → transisi status → DIKIRIM (§7.1)
+    expect(queueMocks[QUEUES.ORDER_EVENTS].add).toHaveBeenCalledWith(
+      EVENT_NAMES.ShipmentCreated,
+      payload,
+      expect.objectContaining({ attempts: 3 }),
+    );
+    // Notification = subscriber umum
+    expect(queueMocks[QUEUES.NOTIFICATION_EVENTS].add).toHaveBeenCalled();
+    // TIDAK dirutekan ke queue lain
+    expect(queueMocks[QUEUES.INVENTORY_EVENTS].add).not.toHaveBeenCalled();
+    expect(queueMocks[QUEUES.PRODUCTION_EVENTS].add).not.toHaveBeenCalled();
+    expect(queueMocks[QUEUES.FINANCE_EVENTS].add).not.toHaveBeenCalled();
+  });
+
+  it('should route ShipmentDelivered to order-events AND notification-events (§4 Fase 7)', async () => {
+    await service.publish(EVENT_NAMES.ShipmentDelivered, {
+      shipmentId: 'ship-1',
+      orderId: 'order-1',
+    });
+
+    expect(queueMocks[QUEUES.ORDER_EVENTS].add).toHaveBeenCalled();
+    expect(queueMocks[QUEUES.NOTIFICATION_EVENTS].add).toHaveBeenCalled();
+  });
+
   it('should apply retry policy: 3 attempts with exponential backoff (DLQ = failed state)', async () => {
     await service.publish(EVENT_NAMES.StockLow, { materialId: 'mat-1' });
 
