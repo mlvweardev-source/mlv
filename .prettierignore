@@ -5,3 +5,5 @@ out/
 coverage/
 pnpm-lock.yaml
 packages/db/prisma/migrations/
+# AGENT_PROGRESS.md — markdown table，经常追加行，prettier持续reformat产生大diff，ignore
+AGENT_PROGRESS.md

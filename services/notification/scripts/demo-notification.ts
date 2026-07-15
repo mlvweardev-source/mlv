@@ -176,7 +176,12 @@ async function main() {
   const penjahit = await prisma.user.findFirst({ where: { role: 'TIM_PENJAHIT' } });
   if (penjahit) {
     const penjahitToken = signJwt(
-      { sub: penjahit.id, email: penjahit.email, role: UserRole.TIM_PENJAHIT, actorType: ActorType.USER },
+      {
+        sub: penjahit.id,
+        email: penjahit.email,
+        role: UserRole.TIM_PENJAHIT,
+        actorType: ActorType.USER,
+      },
       process.env.JWT_SECRET || 'CHANGE_ME',
     );
     const res2 = await fetch(`${base}/notifications`, {
