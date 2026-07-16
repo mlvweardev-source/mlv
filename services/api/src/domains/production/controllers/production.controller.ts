@@ -10,7 +10,8 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import type { JwtPayload } from '@mlv/auth';
-import { AuthGuard } from '../../identity-access/guards/auth.guard';
+import { UserRole } from '@mlv/auth';
+import { AuthGuard, Roles } from '../../identity-access/guards/auth.guard';
 import { GetUser } from '../../identity-access/guards/auth.guard';
 import { ProductionService } from '../services/production.service';
 import { GetTasksQueryDto, UpdateTaskStatusDto, AssignTaskDto } from '../dto/production.dto';
@@ -26,6 +27,10 @@ import { GetTasksQueryDto, UpdateTaskStatusDto, AssignTaskDto } from '../dto/pro
  */
 @Controller('production')
 @UseGuards(AuthGuard)
+// §5.1: Production Domain = staff internal saja (Owner/Manajer full,
+// Penjahit task miliknya — difilter per-endpoint di bawah). Tanpa @Roles
+// class-level, customer ber-JWT valid ikut lolos guard global.
+@Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
 

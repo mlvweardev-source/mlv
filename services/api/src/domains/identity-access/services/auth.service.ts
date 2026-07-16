@@ -402,6 +402,26 @@ export class AuthService {
     return user ? { id: user.id, nama: user.nama, role: user.role as UserRole } : null;
   }
 
+  /**
+   * Daftar staff aktif (Fase 9 Bagian 2): dipakai portal admin untuk
+   * dropdown "assign task ke Tim Penjahit". BUKAN manajemen user penuh
+   * (itu Owner-only, modul terpisah) — hanya list minimal tanpa
+   * kolom sensitif (password/isActive internal).
+   */
+  async findStaffUsers(role?: UserRole) {
+    // Query param mentah dari HTTP — abaikan nilai yang bukan UserRole valid
+    // supaya Prisma tidak melempar error enum.
+    const roleFilter = role && Object.values(UserRole).includes(role) ? role : undefined;
+    return prisma.user.findMany({
+      where: {
+        isActive: true,
+        ...(roleFilter ? { role: roleFilter } : {}),
+      },
+      select: { id: true, nama: true, email: true, role: true },
+      orderBy: { nama: 'asc' },
+    });
+  }
+
   // =====================
   // Seed helper (for dev)
   // =====================

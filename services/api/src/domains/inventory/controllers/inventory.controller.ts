@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import type { JwtPayload } from '@mlv/auth';
 import { InventoryService } from '../services/inventory.service';
 import {
   CreateMaterialDto,
@@ -9,7 +10,7 @@ import {
   CreatePurchaseOrderDto,
   CreateStockAdjustmentDto,
 } from '../dto/inventory.dto';
-import { AuthGuard, Roles } from '../../identity-access/guards/auth.guard';
+import { AuthGuard, Roles, GetUser } from '../../identity-access/guards/auth.guard';
 import { UserRole } from '@mlv/auth';
 
 @Controller()
@@ -36,6 +37,12 @@ export class InventoryController {
   // ==========================================
   // BOM Endpoints
   // ==========================================
+
+  @Get('bom')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
+  async findAllBoms() {
+    return this.inventoryService.findAllBoms();
+  }
 
   @Get('bom/:productType')
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
@@ -85,10 +92,33 @@ export class InventoryController {
   // Purchase & Adjustment Endpoints
   // ==========================================
 
+  @Get('purchases')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
+  async findPurchaseOrders() {
+    return this.inventoryService.findPurchaseOrders();
+  }
+
   @Post('purchases')
   @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
   async createPurchaseOrder(@Body() dto: CreatePurchaseOrderDto) {
     return this.inventoryService.createPurchaseOrder(dto);
+  }
+
+  /**
+   * PATCH /purchases/:id/complete — tandai PO diterima.
+   * Efek stok NYATA: stock_movements tipe IN + stock_balances bertambah
+   * dalam satu transaksi (bukan sekadar flip status).
+   */
+  @Patch('purchases/:id/complete')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async completePurchaseOrder(@Param('id') id: string, @GetUser() actor: JwtPayload) {
+    return this.inventoryService.completePurchaseOrder(id, actor.sub);
+  }
+
+  @Get('stock/adjustments')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI, UserRole.TIM_PENJAHIT)
+  async findStockAdjustments() {
+    return this.inventoryService.findStockAdjustments();
   }
 
   @Post('stock/adjustments')

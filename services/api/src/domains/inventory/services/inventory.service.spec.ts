@@ -35,9 +35,13 @@ jest.mock('@mlv/db', () => ({
     },
     purchaseOrder: {
       create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
     },
     stockAdjustment: {
       create: jest.fn(),
+      findMany: jest.fn(),
     },
     $transaction: jest.fn((cb) => cb(prisma)),
     $queryRaw: jest.fn(),
@@ -229,6 +233,158 @@ describe('InventoryService (Unit)', () => {
         data: { qtyReserved: 15 },
       });
       expect(mockEventBus.publish).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================
+  // Purchase Order — Fase 9 Bagian 2
+  // "Tandai diterima" WAJIB punya efek stok nyata, bukan flip status saja.
+  // ==========================================
+
+  describe('completePurchaseOrder', () => {
+    const mockPo = {
+      id: 'po-1',
+      supplier: 'Toko Kain Jaya',
+      materialId: 'mat-1',
+      qty: 50,
+      totalBiaya: 1500000,
+      status: 'PENDING',
+    };
+    const mockWarehouse = { id: 'wh-1', nama: 'Gudang Utama' };
+
+    it('should throw NotFoundException if purchase order does not exist', async () => {
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.completePurchaseOrder('nonexistent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if PO is already COMPLETED (idempotent guard)', async () => {
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue({
+        ...mockPo,
+        status: 'COMPLETED',
+      });
+      (prisma.warehouse.findFirst as jest.Mock).mockResolvedValue(mockWarehouse);
+      // Compare-and-swap gagal: tidak ada row PENDING yang ter-update
+      (prisma.purchaseOrder.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+      await expect(service.completePurchaseOrder('po-1')).rejects.toThrow(BadRequestException);
+      // Stok TIDAK boleh tersentuh
+      expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+      expect(prisma.stockBalance.update).not.toHaveBeenCalled();
+    });
+
+    it('should create stock movement IN and increase stock balance in one transaction', async () => {
+      (prisma.purchaseOrder.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockPo) // pre-check di luar transaksi
+        .mockResolvedValueOnce({ ...mockPo, status: 'COMPLETED', material: { nama: 'Kain' } });
+      (prisma.warehouse.findFirst as jest.Mock).mockResolvedValue(mockWarehouse);
+      (prisma.purchaseOrder.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.stockBalance.findUnique as jest.Mock).mockResolvedValue({
+        materialId: 'mat-1',
+        warehouseId: 'wh-1',
+        qtyAvailable: 100,
+        qtyReserved: 0,
+      });
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([
+        { material_id: 'mat-1', warehouse_id: 'wh-1', qty_available: 100, qty_reserved: 0 },
+      ]);
+
+      const result = await service.completePurchaseOrder('po-1', 'user-manajer');
+
+      // Compare-and-swap PENDING → COMPLETED
+      expect(prisma.purchaseOrder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'po-1', status: 'PENDING' },
+        data: { status: 'COMPLETED' },
+      });
+      // Movement IN tercatat (sumber kebenaran)
+      expect(prisma.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          materialId: 'mat-1',
+          warehouseId: 'wh-1',
+          tipe: 'IN',
+          qty: 50,
+          refType: 'purchase_order',
+          refId: 'po-1',
+          createdBy: 'user-manajer',
+        },
+      });
+      // Balance cache bertambah 100 → 150
+      expect(prisma.stockBalance.update).toHaveBeenCalledWith({
+        where: {
+          materialId_warehouseId: { materialId: 'mat-1', warehouseId: 'wh-1' },
+        },
+        data: { qtyAvailable: 150 },
+      });
+      expect(result?.status).toBe('COMPLETED');
+    });
+
+    it('should initialize stock balance if material has no balance record yet', async () => {
+      (prisma.purchaseOrder.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockPo)
+        .mockResolvedValueOnce({ ...mockPo, status: 'COMPLETED', material: { nama: 'Kain' } });
+      (prisma.warehouse.findFirst as jest.Mock).mockResolvedValue(mockWarehouse);
+      (prisma.purchaseOrder.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.stockBalance.findUnique as jest.Mock).mockResolvedValue(null); // belum ada balance
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([
+        { material_id: 'mat-1', warehouse_id: 'wh-1', qty_available: 0, qty_reserved: 0 },
+      ]);
+
+      await service.completePurchaseOrder('po-1');
+
+      expect(prisma.stockBalance.create).toHaveBeenCalledWith({
+        data: { materialId: 'mat-1', warehouseId: 'wh-1', qtyAvailable: 0, qtyReserved: 0 },
+      });
+      expect(prisma.stockBalance.update).toHaveBeenCalledWith({
+        where: {
+          materialId_warehouseId: { materialId: 'mat-1', warehouseId: 'wh-1' },
+        },
+        data: { qtyAvailable: 50 },
+      });
+    });
+  });
+
+  describe('findPurchaseOrders', () => {
+    it('should return purchase orders with material, newest first', async () => {
+      const mockPos = [{ id: 'po-2' }, { id: 'po-1' }];
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue(mockPos);
+
+      const result = await service.findPurchaseOrders();
+
+      expect(result).toEqual(mockPos);
+      expect(prisma.purchaseOrder.findMany).toHaveBeenCalledWith({
+        include: { material: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  });
+
+  describe('findStockAdjustments', () => {
+    it('should return adjustments with material, newest first', async () => {
+      const mockAdjustments = [{ id: 'adj-1' }];
+      (prisma.stockAdjustment.findMany as jest.Mock).mockResolvedValue(mockAdjustments);
+
+      const result = await service.findStockAdjustments();
+
+      expect(result).toEqual(mockAdjustments);
+      expect(prisma.stockAdjustment.findMany).toHaveBeenCalledWith({
+        include: { material: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  });
+
+  describe('findAllBoms', () => {
+    it('should return all BOM rows with material', async () => {
+      const mockBoms = [{ id: 'bom-1', productType: 'Kaos' }];
+      (prisma.billOfMaterial.findMany as jest.Mock).mockResolvedValue(mockBoms);
+
+      const result = await service.findAllBoms();
+
+      expect(result).toEqual(mockBoms);
+      expect(prisma.billOfMaterial.findMany).toHaveBeenCalledWith({
+        include: { material: true },
+        orderBy: [{ productType: 'asc' }, { createdAt: 'asc' }],
+      });
     });
   });
 });

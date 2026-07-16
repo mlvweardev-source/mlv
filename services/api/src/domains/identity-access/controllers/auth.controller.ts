@@ -1,10 +1,11 @@
-import { Controller, Post, Get, Body, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import type { StaffAuthResult } from '../services/auth.service';
 import { LoginDto, OtpRequestDto, OtpVerifyDto, GoogleCallbackDto } from '../dto/auth.dto';
-import { AuthGuard, Public } from '../guards/auth.guard';
+import { AuthGuard, Public, Roles } from '../guards/auth.guard';
 import type { JwtPayload } from '@mlv/auth';
+import { UserRole } from '@mlv/auth';
 
 // Nama cookie httpOnly untuk staff portal (Fase 9).
 // Token TIDAK dikirim di response body — mitigasi XSS (§5 keamanan).
@@ -92,6 +93,17 @@ export class AuthController {
   @Get('me')
   async me(@Req() req: { user: JwtPayload }) {
     return this.authService.getMe(req.user);
+  }
+
+  /**
+   * GET /auth/users — Daftar staff aktif (Fase 9 Bagian 2).
+   * Dipakai portal untuk dropdown assign task (?role=TIM_PENJAHIT).
+   * Owner & Manajer Produksi saja — bukan manajemen user penuh (Owner-only, nanti).
+   */
+  @Get('users')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async listStaffUsers(@Query('role') role?: UserRole) {
+    return this.authService.findStaffUsers(role);
   }
 
   // ==========================================

@@ -27,8 +27,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/orders', label: 'Order', icon: ShoppingCart },
-  { href: '/production', label: 'Production', icon: Factory, comingSoon: true },
-  { href: '/inventory', label: 'Inventory', icon: Boxes, comingSoon: true },
+  { href: '/production', label: 'Production', icon: Factory },
+  { href: '/inventory', label: 'Inventory', icon: Boxes },
   { href: '/finance', label: 'Finance', icon: Wallet, comingSoon: true },
   { href: '/approvals', label: 'Approval', icon: BadgeCheck, comingSoon: true },
   { href: '/shipping', label: 'Shipping', icon: Truck, comingSoon: true },

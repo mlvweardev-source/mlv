@@ -89,6 +89,14 @@ export class InventoryService {
     return boms;
   }
 
+  /** Semua BOM (Fase 9 UI): dikelompokkan per product type di frontend. */
+  async findAllBoms() {
+    return prisma.billOfMaterial.findMany({
+      include: { material: true },
+      orderBy: [{ productType: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
   // ==========================================
   // Stock Balance & Cache
   // ==========================================
@@ -615,6 +623,111 @@ export class InventoryService {
         tglBeli: new Date(dto.tglBeli),
         status: 'PENDING',
       },
+    });
+  }
+
+  async findPurchaseOrders() {
+    return prisma.purchaseOrder.findMany({
+      include: { material: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Tandai PO diterima (PENDING → COMPLETED) — Fase 9 Bagian 2.
+   *
+   * BUKAN sekadar update status: barang yang diterima harus benar-benar
+   * menambah stok. Dalam SATU transaksi: stock_movements tipe IN dicatat
+   * (sumber kebenaran) + stock_balances.qty_available bertambah (cache),
+   * pola row-lock yang sama dengan createStockMovement.
+   */
+  async completePurchaseOrder(purchaseOrderId: string, actorId?: string) {
+    const po = await prisma.purchaseOrder.findUnique({
+      where: { id: purchaseOrderId },
+    });
+    if (!po) {
+      throw new NotFoundException('Purchase order tidak ditemukan');
+    }
+
+    const warehouse = await prisma.warehouse.findFirst();
+    if (!warehouse) {
+      throw new NotFoundException('Gudang default tidak ditemukan');
+    }
+    const warehouseId = warehouse.id;
+
+    return prisma.$transaction(async (tx) => {
+      // Compare-and-swap: hanya satu request yang bisa memindahkan
+      // PENDING → COMPLETED — klik ganda / request paralel tidak boleh
+      // menambah stok dua kali.
+      const swapped = await tx.purchaseOrder.updateMany({
+        where: { id: purchaseOrderId, status: 'PENDING' },
+        data: { status: 'COMPLETED' },
+      });
+      if (swapped.count === 0) {
+        throw new BadRequestException('Purchase order sudah ditandai diterima');
+      }
+
+      // Pastikan record stock_balances ada sebelum di-lock
+      const balanceExists = await tx.stockBalance.findUnique({
+        where: {
+          materialId_warehouseId: { materialId: po.materialId, warehouseId },
+        },
+      });
+
+      if (!balanceExists) {
+        await tx.stockBalance.create({
+          data: {
+            materialId: po.materialId,
+            warehouseId,
+            qtyAvailable: 0,
+            qtyReserved: 0,
+          },
+        });
+      }
+
+      // Lock row menggunakan SELECT ... FOR UPDATE
+      const balances = await tx.$queryRaw<any[]>`
+        SELECT * FROM "stock_balances"
+        WHERE "material_id" = ${po.materialId} AND "warehouse_id" = ${warehouseId}
+        FOR UPDATE
+      `;
+      const balance = balances[0];
+      const available = Number(balance.qty_available ?? balance.qtyAvailable ?? 0);
+
+      // Catat movement IN (sumber kebenaran)
+      await tx.stockMovement.create({
+        data: {
+          materialId: po.materialId,
+          warehouseId,
+          tipe: 'IN',
+          qty: po.qty,
+          refType: 'purchase_order',
+          refId: po.id,
+          createdBy: actorId ?? null,
+        },
+      });
+
+      // Update balance cache
+      await tx.stockBalance.update({
+        where: {
+          materialId_warehouseId: { materialId: po.materialId, warehouseId },
+        },
+        data: {
+          qtyAvailable: available + po.qty,
+        },
+      });
+
+      return tx.purchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        include: { material: true },
+      });
+    });
+  }
+
+  async findStockAdjustments() {
+    return prisma.stockAdjustment.findMany({
+      include: { material: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
