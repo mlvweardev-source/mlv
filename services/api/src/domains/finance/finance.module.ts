@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { FinanceService } from './services/finance.service';
+import { InvoicePdfService } from './services/invoice-pdf.service';
 import { FinanceEventsProcessor } from './finance-events.processor';
 import { PaymentController } from './controllers/payment.controller';
 import { InvoiceController } from './controllers/invoice.controller';
@@ -17,7 +18,7 @@ import { IdentityAccessModule } from '../identity-access/identity-access.module'
   // method SEBELUM publish, bukan oleh Notification belakangan.
   imports: [OrderModule, InventoryModule, ProductionModule, CustomerModule, IdentityAccessModule],
   controllers: [PaymentController, InvoiceController, ApprovalController, ProfitSharingController],
-  providers: [FinanceService, FinanceEventsProcessor],
+  providers: [FinanceService, InvoicePdfService, FinanceEventsProcessor],
   exports: [FinanceService],
 })
 export class FinanceModule {}

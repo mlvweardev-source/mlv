@@ -13,6 +13,7 @@ import type { JwtPayload } from '@mlv/auth';
 import { ActorType } from '@mlv/auth';
 import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import {
   GetTasksQueryDto,
   UpdateTaskStatusDto,
@@ -49,6 +50,7 @@ export class ProductionService {
     @Inject(forwardRef(() => OrderService))
     private readonly orderService: OrderService,
     private readonly customerService: CustomerService,
+    private readonly activityLog: ActivityLogService,
   ) {}
 
   // ==========================================
@@ -404,6 +406,15 @@ export class ProductionService {
           task.startedAt!,
         ),
       );
+
+      // Activity Log (§6.8): penugasan task = aksi penting
+      await this.activityLog.log(
+        actor.sub,
+        actor.role ?? null,
+        `Task "${task.taskType}" (urutan ${task.sequence}) untuk order ${fullTask.orderItem.order?.orderNumber} ditugaskan ke ${targetUser.nama}`,
+        'ProductionTask',
+        task.id,
+      );
     }
 
     return fullTask;
@@ -479,6 +490,15 @@ export class ProductionService {
           task.orderItem.order.orderNumber,
           updatedTask.completedAt!,
         ),
+      );
+
+      // Activity Log (§6.8): task selesai = aksi penting
+      await this.activityLog.log(
+        actor.sub,
+        actor.role ?? null,
+        `Task "${task.taskType}" (urutan ${task.sequence}) untuk order ${task.orderItem.order.orderNumber} ditandai SELESAI`,
+        'ProductionTask',
+        task.id,
       );
 
       // Trigger task berikutnya jika ada

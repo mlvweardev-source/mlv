@@ -31,6 +31,8 @@ import { OrderService } from '../../order/services/order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import { AuthService } from '../../identity-access/services/auth.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
+import { InvoicePdfService } from './invoice-pdf.service';
 
 // Midtrans Snap API types
 interface MidtransSnapResponse {
@@ -55,6 +57,8 @@ export class FinanceService {
     private readonly inventoryService: InventoryService,
     private readonly customerService: CustomerService,
     private readonly authService: AuthService,
+    private readonly activityLog: ActivityLogService,
+    private readonly invoicePdfService: InvoicePdfService,
   ) {}
 
   // ==========================================
@@ -310,21 +314,63 @@ export class FinanceService {
   }
 
   /**
-   * GET /invoices/:id/pdf — Generate PDF (placeholder)
+   * GET /invoices/:id/pdf — Generate PDF sungguhan (Fase 9.4, PDFKit).
+   * File disimpan ke uploads/invoices/ (pola upload desain Fase 3),
+   * di-serve via static /uploads — siap di-swap ke S3-compatible nanti.
    */
   async getInvoicePdf(invoiceId: string): Promise<{ pdfUrl: string }> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
-      include: { order: true },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                sizes: true,
+                services: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!invoice) {
       throw new NotFoundException('Invoice tidak ditemukan');
     }
 
-    // TODO: Generate actual PDF with template
-    // For now, return a placeholder URL
-    return { pdfUrl: `/invoices/${invoiceId}/download.pdf` };
+    // Nama/kontak pelanggan via CustomerService (DDD boundary §4.1)
+    const customer = await this.customerService.getCustomerByIdInternal(invoice.order.customerId);
+
+    const detail = this.formatInvoiceDetail(invoice);
+    const pdfUrl = await this.invoicePdfService.generate({
+      invoiceId: invoice.id,
+      orderNumber: invoice.order.orderNumber,
+      jenis: invoice.jenis,
+      status: invoice.status,
+      jumlah: invoice.jumlah,
+      createdAt: invoice.createdAt,
+      customerNama: customer?.nama ?? 'Pelanggan',
+      customerNoHp: customer?.noHp ?? null,
+      items: detail.items.map((i: any) => ({
+        productType: i.productType,
+        qty: i.qty,
+        basePriceSnapshot: i.basePriceSnapshot,
+      })),
+      services: detail.services,
+      subtotal: detail.subtotal,
+      discount: detail.discount,
+      total: detail.total,
+      notes: invoice.notes,
+    });
+
+    // Simpan URL supaya konsisten dengan kolom pdf_url yang sudah ada
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { pdfUrl },
+    });
+
+    return { pdfUrl };
   }
 
   /**
@@ -451,6 +497,20 @@ export class FinanceService {
 
     // Publish ApprovalDecided event — sertakan nama pemutus (Fase 8)
     const decider = await this.authService.getUserByIdInternal(actor.sub);
+
+    // Activity Log (§6.8, Fase 9.4): keputusan approval = aksi penting.
+    // Dicatat ke entity Order (kalau ada orderId) supaya tampil di
+    // "Riwayat Aktivitas" order — fallback ke entity Approval.
+    const decisionLabel = dto.status === 'APPROVED' ? 'menyetujui' : 'menolak';
+    await this.activityLog.log(
+      actor.sub,
+      actor.role ?? null,
+      `${decider?.nama ?? 'Owner'} ${decisionLabel} approval ${approval.tipe}` +
+        (dto.alasan ? ` — ${dto.alasan}` : ''),
+      approval.orderId ? 'Order' : 'Approval',
+      approval.orderId ?? approval.id,
+    );
+
     await this.eventBus.publish(
       EVENT_NAMES.ApprovalDecided,
       new ApprovalDecidedEvent(

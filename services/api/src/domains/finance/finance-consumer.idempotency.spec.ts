@@ -6,6 +6,8 @@ import { InventoryService } from '../inventory/services/inventory.service';
 import { CustomerService } from '../customer/services/customer.service';
 import { AuthService } from '../identity-access/services/auth.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../common/activity-log/activity-log.service';
+import { InvoicePdfService } from './services/invoice-pdf.service';
 
 // Mock prisma
 jest.mock('@mlv/db', () => ({
@@ -64,6 +66,10 @@ describe('FinanceService - ProductionCompleted Consumer Idempotency (§16)', () 
           provide: AuthService,
           useValue: { getUserByIdInternal: jest.fn().mockResolvedValue(null) },
         },
+        // ActivityLogService (Fase 9.4)
+        { provide: ActivityLogService, useValue: { log: jest.fn() } },
+        // InvoicePdfService (Fase 9.4)
+        { provide: InvoicePdfService, useValue: { generate: jest.fn() } },
       ],
     }).compile();
 

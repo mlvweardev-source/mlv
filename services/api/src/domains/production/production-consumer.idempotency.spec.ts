@@ -3,6 +3,7 @@ import { ProductionService } from './services/production.service';
 import { OrderService } from '../order/services/order.service';
 import { CustomerService } from '../customer/services/customer.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../common/activity-log/activity-log.service';
 
 // Mock @mlv/db
 jest.mock('@mlv/db', () => ({
@@ -62,6 +63,11 @@ describe('ProductionService - OrderConfirmed Consumer Idempotency (§16)', () =>
         {
           provide: CustomerService,
           useValue: { getCustomerByIdInternal: jest.fn().mockResolvedValue(null) },
+        },
+        // ActivityLogService (Fase 9.4)
+        {
+          provide: ActivityLogService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();

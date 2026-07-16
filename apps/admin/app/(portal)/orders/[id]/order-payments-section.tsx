@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, ExternalLink, FileText, Plus } from 'lucide-react';
-import { apiFetch, apiJson } from '@/lib/api';
+import { API_URL, apiFetch, apiJson } from '@/lib/api';
 import {
   PAYMENT_STATUS_LABELS,
   INVOICE_STATUS_LABELS,
@@ -127,7 +127,8 @@ export function OrderPaymentsSection({ orderId, canAct }: { orderId: string; can
     setError(null);
     try {
       const { pdfUrl } = await apiFetch<{ pdfUrl: string }>(`/invoices/${invoiceId}/pdf`);
-      window.open(pdfUrl.startsWith('http') ? pdfUrl : `${window.location.origin}${pdfUrl}`);
+      // pdfUrl = /uploads/invoices/xxx.pdf → serve via API static /uploads
+      window.open(pdfUrl.startsWith('http') ? pdfUrl : `${API_URL}${pdfUrl}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal mengambil PDF invoice');
     }

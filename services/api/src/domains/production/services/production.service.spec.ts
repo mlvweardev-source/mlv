@@ -4,6 +4,7 @@ import { ProductionService } from './production.service';
 import { OrderService } from '../../order/services/order.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { ActorType, UserRole } from '@mlv/auth';
 
 // Mock @mlv/db - all inline to avoid hoisting issues
@@ -84,6 +85,11 @@ describe('ProductionService', () => {
               email: null,
             }),
           },
+        },
+        // ActivityLogService (Fase 9.4)
+        {
+          provide: ActivityLogService,
+          useValue: { log: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

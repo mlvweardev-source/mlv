@@ -89,11 +89,16 @@ export class AuthGuard implements CanActivate {
     throw new UnauthorizedException(`Role ${payload.role} tidak memiliki akses ke endpoint ini`);
   }
 
-  private extractToken(request: { headers: { authorization?: string } }): string | null {
+  private extractToken(request: {
+    headers: { authorization?: string };
+    cookies?: Record<string, string>;
+  }): string | null {
     const authorization = request.headers.authorization;
-    if (!authorization) return null;
-
-    const [type, token] = authorization.split(' ');
-    return type === 'Bearer' ? token : null;
+    if (authorization) {
+      const [type, token] = authorization.split(' ');
+      if (type === 'Bearer' && token) return token;
+    }
+    // Fase 9.4: support cookie untuk portal admin
+    return request.cookies?.['mlv_access_token'] ?? null;
   }
 }

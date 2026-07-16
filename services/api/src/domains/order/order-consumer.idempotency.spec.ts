@@ -3,6 +3,7 @@ import { OrderService } from './services/order.service';
 import { InventoryService } from '../inventory/services/inventory.service';
 import { ProductionService } from '../production/services/production.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../common/activity-log/activity-log.service';
 import { EVENT_NAMES } from '@mlv/types';
 
 // Mock Prisma
@@ -53,6 +54,8 @@ describe('OrderService - Event Consumer Idempotency (§16)', () => {
         { provide: EventBusService, useValue: mockEventBus },
         { provide: InventoryService, useValue: {} },
         { provide: ProductionService, useValue: {} },
+        // ActivityLogService (Fase 9.4)
+        { provide: ActivityLogService, useValue: { log: jest.fn() } },
       ],
     }).compile();
 

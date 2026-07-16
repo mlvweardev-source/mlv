@@ -403,6 +403,20 @@ export class AuthService {
   }
 
   /**
+   * Batch variant of getUserByIdInternal — single DB call untuk N user.
+   * Dipakai InternalChatService.FIX #2: avoid N+1 query per chat message.
+   */
+  async getUsersByIdsInternal(
+    userIds: string[],
+  ): Promise<Array<{ id: string; nama: string; role: UserRole }>> {
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, nama: true, role: true },
+    });
+    return users.map((u) => ({ id: u.id, nama: u.nama, role: u.role as UserRole }));
+  }
+
+  /**
    * Daftar staff aktif (Fase 9 Bagian 2): dipakai portal admin untuk
    * dropdown "assign task ke Tim Penjahit". BUKAN manajemen user penuh
    * (itu Owner-only, modul terpisah) — hanya list minimal tanpa

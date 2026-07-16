@@ -57,6 +57,7 @@ export const ROUTE_ROLES: Array<{ prefix: string; roles: StaffRole[] }> = [
   { prefix: '/approvals', roles: ['OWNER', 'MANAJER_PRODUKSI'] },
   { prefix: '/shipping', roles: ['OWNER', 'MANAJER_PRODUKSI'] },
   { prefix: '/notifications', roles: ['OWNER', 'MANAJER_PRODUKSI', 'TIM_PENJAHIT'] },
+  { prefix: '/activity-log', roles: ['OWNER', 'MANAJER_PRODUKSI'] },
   { prefix: '/chat', roles: ['OWNER', 'MANAJER_PRODUKSI', 'TIM_PENJAHIT'] },
   { prefix: '/users', roles: ['OWNER'] },
 ];

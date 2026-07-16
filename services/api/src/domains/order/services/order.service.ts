@@ -13,6 +13,7 @@ import { ActorType, UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { ProductionService } from '../../production/services/production.service';
 import { ReserveStockDto } from '../../inventory/dto/inventory.dto';
@@ -59,6 +60,7 @@ export class OrderService {
 
   constructor(
     private readonly eventBus: EventBusService,
+    private readonly activityLog: ActivityLogService,
     private readonly inventoryService: InventoryService,
     @Inject(forwardRef(() => ProductionService))
     private readonly productionService: ProductionService,
@@ -675,6 +677,15 @@ export class OrderService {
 
       this.logger.log(`Checkout successful for order ${order.orderNumber}`);
 
+      // Activity Log (§6.8): perubahan status order = aksi penting
+      await this.activityLog.log(
+        actor.sub,
+        actor.role ?? null,
+        `Order ${order.orderNumber} checkout — status DRAFT → MENUNGGU_PEMBAYARAN_DP`,
+        'Order',
+        order.id,
+      );
+
       return this.getOrderById(order.id, actor);
     } catch (error: any) {
       // 6. Rollback: release semua reservation yang sudah berhasil
@@ -738,6 +749,15 @@ export class OrderService {
 
     this.logger.log(`Order ${order.orderNumber} moved to ANTREAN, OrderConfirmed published`);
 
+    // Activity Log (§6.8): perubahan status order
+    await this.activityLog.log(
+      actor.sub,
+      actor.role ?? null,
+      `Order ${order.orderNumber} masuk antrean produksi — status → ANTREAN`,
+      'Order',
+      order.id,
+    );
+
     return this.getOrderById(order.id, actor);
   }
 
@@ -784,6 +804,15 @@ export class OrderService {
     await this.eventBus.publish(
       EVENT_NAMES.OrderCancelled,
       new OrderCancelledEvent(order.id, order.orderNumber, order.customerId, reason, new Date()),
+    );
+
+    // Activity Log (§6.8): pembatalan order = aksi penting
+    await this.activityLog.log(
+      actor.sub,
+      actor.role ?? null,
+      `Order ${order.orderNumber} dibatalkan${reason ? ` — ${reason}` : ''}`,
+      'Order',
+      order.id,
     );
 
     return this.getOrderById(order.id, actor);
@@ -848,6 +877,15 @@ export class OrderService {
         new OrderConfirmedEvent(order.id, order.orderNumber, order.customerId, new Date()),
       );
 
+      // Activity Log (§6.8): status berubah otomatis oleh sistem (DP sukses)
+      await this.activityLog.log(
+        null,
+        'SYSTEM',
+        `Order ${order.orderNumber} masuk antrean produksi — pembayaran DP diterima`,
+        'Order',
+        order.id,
+      );
+
       this.logger.log(`Order ${order.orderNumber} transitioned to ANTREAN after DP payment`);
     } else if (event.jenis === 'PELUNASAN') {
       // Idempotency: skip jika sudah LUNAS/DIKIRIM
@@ -870,6 +908,15 @@ export class OrderService {
           deskripsi: `Pembayaran pelunasan Rp ${event.jumlah.toLocaleString()} berhasil.`,
         },
       });
+
+      // Activity Log (§6.8): status berubah otomatis oleh sistem
+      await this.activityLog.log(
+        null,
+        'SYSTEM',
+        `Order ${order.orderNumber} lunas — pembayaran pelunasan diterima`,
+        'Order',
+        order.id,
+      );
 
       this.logger.log(`Order ${order.orderNumber} transitioned to LUNAS after pelunasan payment`);
     }

@@ -4,6 +4,7 @@ import { OrderService } from './order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { ProductionService } from '../../production/services/production.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
@@ -59,6 +60,9 @@ const mockProductionService = {
   getOrderIdsForAssignee: jest.fn().mockResolvedValue([]),
 };
 
+// Mock ActivityLogService (Fase 9.4)
+const mockActivityLog = { log: jest.fn().mockResolvedValue(undefined) };
+
 describe('OrderService', () => {
   let service: OrderService;
   let mockEventBus: { publish: jest.Mock };
@@ -98,6 +102,10 @@ describe('OrderService', () => {
         {
           provide: ProductionService,
           useValue: mockProductionService,
+        },
+        {
+          provide: ActivityLogService,
+          useValue: mockActivityLog,
         },
       ],
     }).compile();

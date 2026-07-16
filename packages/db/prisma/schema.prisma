@@ -172,6 +172,7 @@ model Order {
   invoices     Invoice[]
   approvals    Approval[]
   shipments    Shipment[]
+  internalChatThread InternalChatThread? // Fase 9.4: chat internal per order (§11)
 
   @@map("orders")
 }
@@ -670,4 +671,59 @@ enum NotificationStatus {
   PENDING
   SENT
   FAILED
+}
+
+// ==========================================
+// Activity Log (§6.8) — Fase 9 Bagian 4
+// ==========================================
+// Infrastruktur cross-cutting (BUKAN bounded context sendiri): domain
+// manapun boleh memanggil ActivityLogService langsung untuk mencatat
+// aktivitas manusiawi yang tampil di UI.
+// BEDA dengan Audit Log (§17, forensik, append-only) — dirapikan di Fase 17.
+
+/// Riwayat aktivitas manusiawi (tampil di portal admin)
+model ActivityLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id") // null untuk aksi sistem (event processor)
+  actorRole  String?  @map("actor_role") // OWNER/MANAJER_PRODUKSI/TIM_PENJAHIT/SYSTEM
+  deskripsi  String
+  entityType String   @map("entity_type") // mis. 'Order', 'ProductionTask', 'Approval', 'Shipment'
+  entityId   String   @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([createdAt])
+  @@map("activity_log")
+}
+
+// ==========================================
+// Internal Chat (§11) — Fase 9 Bagian 4
+// ==========================================
+// Chat staf internal per order. BUKAN Customer Portal chat
+// (customer_chat_* — tabel berbeda, Fase 10).
+
+/// Thread chat internal — satu per order
+model InternalChatThread {
+  id        String   @id @default(uuid())
+  orderId   String   @unique @map("order_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  messages  InternalChatMessage[]
+
+  @@map("internal_chat_threads")
+}
+
+/// Pesan dalam thread chat internal
+model InternalChatMessage {
+  id        String   @id @default(uuid())
+  threadId  String   @map("thread_id")
+  senderId  String   @map("sender_id") // staff user id
+  pesan     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread    InternalChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("internal_chat_messages")
 }

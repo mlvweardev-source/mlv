@@ -50,3 +50,6 @@ docker/redisdata/
 .docusaurus/
 # Next.js
 next-env.d.ts
+
+# Uploaded files (local disk storage — desain Fase 3, invoice PDF Fase 9.4)
+uploads/

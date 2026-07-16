@@ -11,6 +11,8 @@ import { OrderStatusBadge, statusLabel } from '@/components/order-status-badge';
 import { OrderPaymentsSection } from './order-payments-section';
 import { SubmitApprovalDialog } from './submit-approval-dialog';
 import { CreateShipmentDialog } from './create-shipment-dialog';
+import { ChatPanel } from '@/components/chat-panel';
+import { ActivityLogSection } from '@/components/activity-log-section';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +39,15 @@ function availableTransitions(status: OrderStatus): OrderStatus[] {
   return transitions;
 }
 
-export function OrderDetailClient({ orderId, role }: { orderId: string; role: StaffRole }) {
+export function OrderDetailClient({
+  orderId,
+  role,
+  userId,
+}: {
+  orderId: string;
+  role: StaffRole;
+  userId: string;
+}) {
   const router = useRouter();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -400,7 +410,24 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: St
             )}
           </CardContent>
         </Card>
+
+        {/* Chat Panel — realtime via SSE */}
+        <Card className="h-fit">
+          <CardContent className="p-0">
+            <ChatPanel orderId={order.id} role={role} userId={userId} />
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Activity Log Section — di bawah grid */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Riwayat Aktivitas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ActivityLogSection orderId={order.id} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ShippingService } from './shipping.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { OrderService } from '../../order/services/order.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import { prisma } from '@mlv/db';
@@ -88,6 +89,11 @@ describe('ShippingService (Unit)', () => {
               email: null,
             }),
           },
+        },
+        // ActivityLogService (Fase 9.4)
+        {
+          provide: ActivityLogService,
+          useValue: { log: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

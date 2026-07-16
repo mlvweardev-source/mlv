@@ -17,5 +17,5 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     redirect('/login');
   }
 
-  return <OrderDetailClient orderId={id} role={payload.role as StaffRole} />;
+  return <OrderDetailClient orderId={id} role={payload.role as StaffRole} userId={payload.sub} />;
 }

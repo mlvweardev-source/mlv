@@ -8,6 +8,8 @@ import { InventoryService } from '../../inventory/services/inventory.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import { AuthService } from '../../identity-access/services/auth.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
+import { InvoicePdfService } from './invoice-pdf.service';
 
 // Mock prisma
 jest.mock('@mlv/db', () => ({
@@ -116,6 +118,10 @@ describe('FinanceService - Webhook Signature Verification', () => {
         { provide: InventoryService, useValue: mockInventoryService },
         { provide: CustomerService, useValue: mockCustomerService },
         { provide: AuthService, useValue: mockAuthService },
+        // ActivityLogService (Fase 9.4)
+        { provide: ActivityLogService, useValue: { log: jest.fn() } },
+        // InvoicePdfService (Fase 9.4)
+        { provide: InvoicePdfService, useValue: { generate: jest.fn() } },
       ],
     }).compile();
 

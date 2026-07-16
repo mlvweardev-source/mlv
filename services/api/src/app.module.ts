@@ -10,6 +10,8 @@ import { OrderModule } from './domains/order/order.module';
 import { ProductionModule } from './domains/production/production.module';
 import { FinanceModule } from './domains/finance/finance.module';
 import { ShippingModule } from './domains/shipping/shipping.module';
+import { ActivityLogModule } from './common/activity-log/activity-log.module';
+import { InternalChatModule } from './common/internal-chat/internal-chat.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -27,7 +29,10 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     OrderModule,
     ProductionModule,
     FinanceModule,
-    ShippingModule, // Fase 7: Shipping Domain
+    ShippingModule,
+    // Infrastruktur cross-cutting (Fase 9.4)
+    ActivityLogModule,
+    InternalChatModule,
   ],
   controllers: [AppController],
   providers: [

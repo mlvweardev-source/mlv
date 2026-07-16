@@ -7,6 +7,8 @@ import { InventoryService } from '../../inventory/services/inventory.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import { AuthService } from '../../identity-access/services/auth.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
+import { InvoicePdfService } from './invoice-pdf.service';
 import { ActorType, UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 
@@ -70,6 +72,10 @@ describe('FinanceService — Fase 9.3 (list & inbox approval)', () => {
         { provide: InventoryService, useValue: {} },
         { provide: CustomerService, useValue: {} },
         { provide: AuthService, useValue: mockAuthService },
+        // ActivityLogService (Fase 9.4)
+        { provide: ActivityLogService, useValue: { log: jest.fn() } },
+        // InvoicePdfService (Fase 9.4)
+        { provide: InvoicePdfService, useValue: { generate: jest.fn() } },
       ],
     }).compile();
 

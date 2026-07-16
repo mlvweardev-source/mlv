@@ -3,6 +3,7 @@ import { prisma } from '@mlv/db';
 import type { ShipmentStatus } from '@mlv/db';
 import { EVENT_NAMES } from '@mlv/types';
 import { EventBusService } from '../../../event-bus/event-bus.service';
+import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { OrderService } from '../../order/services/order.service';
 import { CustomerService } from '../../customer/services/customer.service';
 import {
@@ -35,6 +36,7 @@ export class ShippingService {
 
   constructor(
     private readonly eventBus: EventBusService,
+    private readonly activityLog: ActivityLogService,
     private readonly orderService: OrderService,
     private readonly customerService: CustomerService,
   ) {}
@@ -114,6 +116,15 @@ export class ShippingService {
       `Shipment ${shipment.id} dibuat untuk order ${order.orderNumber} (${shipment.kurir})`,
     );
 
+    // Activity Log (§6.8): shipment dibuat = aksi penting
+    await this.activityLog.log(
+      null, // ShippingService tidak punya actor context — caller controller punya
+      'SYSTEM', // shipping = aksi manual staff yang sudah gate LUNAS
+      `Shipment untuk order ${order.orderNumber} dibuat via ${shipment.kurir}${shipment.noResi ? ` (resi: ${shipment.noResi})` : ''}`,
+      'Shipment',
+      shipment.id,
+    );
+
     return this.mapToResponse(shipment);
   }
 
@@ -154,6 +165,15 @@ export class ShippingService {
         await this.eventBus.publish(
           EVENT_NAMES.ShipmentDelivered,
           new ShipmentDeliveredEvent(shipment.id, shipment.orderId, order.orderNumber, new Date()),
+        );
+
+        // Activity Log (§6.8): shipment sampai
+        await this.activityLog.log(
+          null,
+          'SYSTEM',
+          `Shipment order ${order.orderNumber} ditandai DITERIMA`,
+          'Shipment',
+          shipment.id,
         );
       }
     }

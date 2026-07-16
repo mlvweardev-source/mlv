@@ -32,8 +32,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/finance', label: 'Finance', icon: Wallet },
   { href: '/approvals', label: 'Approval', icon: BadgeCheck },
   { href: '/shipping', label: 'Shipping', icon: Truck },
-  { href: '/notifications', label: 'Notifikasi', icon: Bell, comingSoon: true },
-  { href: '/chat', label: 'Internal Chat', icon: MessagesSquare, comingSoon: true },
+  { href: '/notifications', label: 'Notifikasi', icon: Bell },
+  { href: '/chat', label: 'Internal Chat', icon: MessagesSquare },
   { href: '/users', label: 'User & Role', icon: Users, comingSoon: true },
 ];
 
