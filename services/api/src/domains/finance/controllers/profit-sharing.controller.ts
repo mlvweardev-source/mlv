@@ -1,19 +1,19 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Headers,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
 import { FinanceService } from '../services/finance.service';
 import { CreateProfitSharingDto, UpdateProfitSharingDto } from '../dto/finance.dto';
+import { Roles, GetUser } from '../../identity-access/guards/auth.guard';
+import { UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 
+/**
+ * Profit Sharing endpoints — §8.
+ *
+ * §5.1 TEGAS: Owner-only — Manajer & Penjahit "❌" (bukan view-only).
+ * RBAC dua lapis: @Roles(OWNER) di guard + cek actor.role di service.
+ * Actor dari @GetUser() (JWT terverifikasi) — BUKAN header `x-user`.
+ */
 @Controller('profit-sharing')
+@Roles(UserRole.OWNER)
 export class ProfitSharingController {
   constructor(private readonly financeService: FinanceService) {}
 
@@ -21,8 +21,7 @@ export class ProfitSharingController {
    * GET /profit-sharing — Semua profit sharing (Owner only)
    */
   @Get()
-  async getProfitSharing(@Headers('x-user') userJson: string) {
-    const actor: JwtPayload = JSON.parse(userJson || '{}');
+  async getProfitSharing(@GetUser() actor: JwtPayload) {
     return this.financeService.getProfitSharing(actor);
   }
 
@@ -30,11 +29,7 @@ export class ProfitSharingController {
    * POST /profit-sharing — Tambah profit sharing (Owner only)
    */
   @Post()
-  async createProfitSharing(
-    @Body() dto: CreateProfitSharingDto,
-    @Headers('x-user') userJson: string,
-  ) {
-    const actor: JwtPayload = JSON.parse(userJson || '{}');
+  async createProfitSharing(@Body() dto: CreateProfitSharingDto, @GetUser() actor: JwtPayload) {
     return this.financeService.createProfitSharing(dto, actor);
   }
 
@@ -45,9 +40,8 @@ export class ProfitSharingController {
   async updateProfitSharing(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProfitSharingDto,
-    @Headers('x-user') userJson: string,
+    @GetUser() actor: JwtPayload,
   ) {
-    const actor: JwtPayload = JSON.parse(userJson || '{}');
     return this.financeService.updateProfitSharing(id, dto, actor);
   }
 
@@ -55,11 +49,7 @@ export class ProfitSharingController {
    * DELETE /profit-sharing/:id — Hapus profit sharing (Owner only)
    */
   @Delete(':id')
-  async deleteProfitSharing(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Headers('x-user') userJson: string,
-  ) {
-    const actor: JwtPayload = JSON.parse(userJson || '{}');
+  async deleteProfitSharing(@Param('id', ParseUUIDPipe) id: string, @GetUser() actor: JwtPayload) {
     return this.financeService.deleteProfitSharing(id, actor);
   }
 }

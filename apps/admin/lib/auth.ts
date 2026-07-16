@@ -50,6 +50,9 @@ export const ROUTE_ROLES: Array<{ prefix: string; roles: StaffRole[] }> = [
   { prefix: '/orders', roles: ['OWNER', 'MANAJER_PRODUKSI', 'TIM_PENJAHIT'] },
   { prefix: '/production', roles: ['OWNER', 'MANAJER_PRODUKSI', 'TIM_PENJAHIT'] },
   { prefix: '/inventory', roles: ['OWNER', 'MANAJER_PRODUKSI', 'TIM_PENJAHIT'] },
+  // §5.1 TEGAS: profit sharing Owner-only ("❌" untuk Manajer & Penjahit).
+  // HARUS di atas '/finance' — allowedRolesFor pakai first-match prefix.
+  { prefix: '/finance/profit-sharing', roles: ['OWNER'] },
   { prefix: '/finance', roles: ['OWNER', 'MANAJER_PRODUKSI'] },
   { prefix: '/approvals', roles: ['OWNER', 'MANAJER_PRODUKSI'] },
   { prefix: '/shipping', roles: ['OWNER', 'MANAJER_PRODUKSI'] },

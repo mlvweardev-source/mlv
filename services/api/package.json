@@ -15,6 +15,7 @@
     "demo:shipping": "ts-node scripts/demo-shipping.ts",
     "demo:auth-portal": "ts-node scripts/demo-auth-portal.ts",
     "demo:production-inventory": "ts-node scripts/demo-production-inventory.ts",
+    "demo:finance-shipping": "ts-node scripts/demo-finance-shipping.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {

@@ -232,3 +232,129 @@ export interface StockAdjustmentRow {
   createdAt: string;
   material: Material;
 }
+
+// ==========================================
+// Finance Domain (Fase 9 Bagian 3)
+// ==========================================
+
+export type PaymentType = 'DP' | 'PELUNASAN';
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: 'Pending',
+  SUCCESS: 'Sukses',
+  FAILED: 'Gagal',
+  EXPIRED: 'Kadaluarsa',
+  CANCELLED: 'Dibatalkan',
+};
+
+export interface PaymentRow {
+  id: string;
+  orderId: string;
+  jenis: PaymentType;
+  metode: string;
+  jumlah: number;
+  status: PaymentStatus;
+  midtransOrderId: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  order?: { id: string; orderNumber: string; status: string };
+}
+
+export interface CreatePaymentResult {
+  payment: PaymentRow;
+  midtransToken?: string;
+  midtransRedirectUrl?: string;
+}
+
+export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED' | 'REFUNDED';
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  DRAFT: 'Draft',
+  ISSUED: 'Diterbitkan',
+  PAID: 'Dibayar',
+  CANCELLED: 'Dibatalkan',
+  REFUNDED: 'Direfund',
+};
+
+export interface InvoiceRow {
+  id: string;
+  orderId: string;
+  jenis: PaymentType;
+  jumlah: number;
+  status: InvoiceStatus;
+  pdfUrl: string | null;
+  createdAt: string;
+  order?: { id: string; orderNumber: string; status: string };
+}
+
+export type ApprovalType = 'HARGA_KHUSUS' | 'DISKON' | 'EDIT_INVOICE' | 'REFUND';
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export const APPROVAL_TYPE_LABELS: Record<ApprovalType, string> = {
+  HARGA_KHUSUS: 'Harga Khusus',
+  DISKON: 'Diskon',
+  EDIT_INVOICE: 'Edit Invoice',
+  REFUND: 'Refund',
+};
+
+export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
+  PENDING: 'Menunggu',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+};
+
+export interface ApprovalRow {
+  id: string;
+  tipe: ApprovalType;
+  refId: string | null;
+  orderId: string | null;
+  requestedBy: string;
+  requesterNama: string | null;
+  status: ApprovalStatus;
+  approvedBy: string | null;
+  approverNama: string | null;
+  alasan: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  order?: { id: string; orderNumber: string; status: string } | null;
+}
+
+export interface ProfitSharingRow {
+  id: string;
+  orderId: string | null;
+  periode: string | null;
+  pihak: string;
+  persentase: number;
+  nominal: number | null;
+  catatan: string | null;
+  createdAt: string;
+}
+
+// ==========================================
+// Shipping Domain (Fase 9 Bagian 3)
+// ==========================================
+
+export type ShipmentStatus = 'DICATAT' | 'DIKIRIM' | 'DALAM_TRANSIT' | 'DITERIMA';
+
+export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
+  DICATAT: 'Dicatat',
+  DIKIRIM: 'Dikirim',
+  DALAM_TRANSIT: 'Dalam Transit',
+  DITERIMA: 'Diterima',
+};
+
+export interface ShipmentRow {
+  id: string;
+  orderId: string;
+  kurir: string;
+  noResi: string | null;
+  status: ShipmentStatus;
+  alamatPengiriman: string | null;
+  biayaKirim: number | null;
+  trackingToken: string;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

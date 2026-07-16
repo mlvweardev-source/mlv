@@ -1,5 +1,5 @@
-import { ComingSoon } from '@/components/coming-soon';
+import { redirect } from 'next/navigation';
 
 export default function FinancePage() {
-  return <ComingSoon title="Finance" />;
+  redirect('/finance/payments');
 }

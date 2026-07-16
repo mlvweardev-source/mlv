@@ -214,6 +214,21 @@ export class FinanceService {
     return payment;
   }
 
+  /**
+   * GET /payments — daftar payment (Fase 9.3).
+   * ?orderId= untuk section Pembayaran di halaman Order;
+   * tanpa filter untuk overview /finance.
+   */
+  async findPayments(orderId?: string): Promise<any[]> {
+    return prisma.payment.findMany({
+      where: orderId ? { orderId } : undefined,
+      include: {
+        order: { select: { id: true, orderNumber: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // ==========================================
   // Invoice Methods
   // ==========================================
@@ -249,6 +264,21 @@ export class FinanceService {
         jumlah,
         status: 'DRAFT',
       },
+    });
+  }
+
+  /**
+   * GET /invoices — daftar invoice (Fase 9.3).
+   * ?orderId= untuk section Pembayaran di halaman Order;
+   * tanpa filter untuk overview /finance.
+   */
+  async findInvoices(orderId?: string): Promise<any[]> {
+    return prisma.invoice.findMany({
+      where: orderId ? { orderId } : undefined,
+      include: {
+        order: { select: { id: true, orderNumber: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -356,6 +386,7 @@ export class FinanceService {
       data: {
         tipe: dto.tipe,
         refId: dto.refId,
+        orderId: dto.orderId, // order terkait — untuk konteks di inbox approval (Fase 9.3)
         requestedBy: actor.sub,
         alasan: dto.alasan,
       },
@@ -473,15 +504,21 @@ export class FinanceService {
   }
 
   /**
-   * GET /approvals
+   * GET /approvals — Fase 9.3: inbox approval.
+   * §5.1: Owner lihat SEMUA; Manajer hanya request yang dia ajukan sendiri.
+   * Nama pengaju/pemutus di-enrich via AuthService (DDD boundary §4.1).
    */
-  async getApprovals(status?: string): Promise<any[]> {
+  async getApprovals(status?: string, actor?: JwtPayload): Promise<any[]> {
     const where: any = {};
     if (status) {
       where.status = status;
     }
+    // Manajer: hanya request miliknya sendiri (§5.1 "ajukan saja")
+    if (actor && actor.role !== 'OWNER') {
+      where.requestedBy = actor.sub;
+    }
 
-    return prisma.approval.findMany({
+    const approvals = await prisma.approval.findMany({
       where,
       include: {
         order: {
@@ -494,6 +531,21 @@ export class FinanceService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Enrich nama staff (requestedBy/approvedBy) via AuthService
+    const userIds = [
+      ...new Set(
+        approvals.flatMap((a) => [a.requestedBy, a.approvedBy]).filter((id): id is string => !!id),
+      ),
+    ];
+    const users = await Promise.all(userIds.map((id) => this.authService.getUserByIdInternal(id)));
+    const userMap = new Map(users.filter(Boolean).map((u) => [u!.id, u!.nama]));
+
+    return approvals.map((a) => ({
+      ...a,
+      requesterNama: userMap.get(a.requestedBy) ?? null,
+      approverNama: a.approvedBy ? (userMap.get(a.approvedBy) ?? null) : null,
+    }));
   }
 
   // ==========================================

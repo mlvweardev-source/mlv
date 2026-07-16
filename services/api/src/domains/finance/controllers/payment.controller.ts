@@ -4,7 +4,7 @@ import {
   Body,
   Get,
   Param,
-  UseGuards,
+  Query,
   Headers,
   HttpCode,
   HttpStatus,
@@ -12,10 +12,20 @@ import {
 } from '@nestjs/common';
 import { FinanceService } from '../services/finance.service';
 import { CreatePaymentDto } from '../dto/finance.dto';
-import { Public } from '../../identity-access/guards/auth.guard';
+import { Public, Roles, GetUser } from '../../identity-access/guards/auth.guard';
+import { UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 
+/**
+ * Payment endpoints — §8.
+ *
+ * RBAC (Fase 9.3): actor dari @GetUser() (payload JWT terverifikasi
+ * AuthGuard) — BUKAN header `x-user` yang bisa dipalsukan client.
+ * §5.1 + keputusan Fase 9.3: buat link pembayaran = aksi operasional dari
+ * halaman Order (Owner & Manajer); halaman /finance = view-only.
+ */
 @Controller('payments')
+@Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
 export class PaymentController {
   constructor(private readonly financeService: FinanceService) {}
 
@@ -23,9 +33,16 @@ export class PaymentController {
    * POST /payments — Buat payment + inisiasi Midtrans
    */
   @Post()
-  async createPayment(@Body() dto: CreatePaymentDto, @Headers('x-user') userJson: string) {
-    const actor: JwtPayload = JSON.parse(userJson || '{}');
+  async createPayment(@Body() dto: CreatePaymentDto, @GetUser() actor: JwtPayload) {
     return this.financeService.createPayment(dto, actor);
+  }
+
+  /**
+   * GET /payments — Daftar payment (filter opsional ?orderId=)
+   */
+  @Get()
+  async findPayments(@Query('orderId') orderId?: string) {
+    return this.financeService.findPayments(orderId);
   }
 
   /**

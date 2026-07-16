@@ -76,6 +76,10 @@ export class CreateApprovalDto {
   refId?: string;
 
   @IsOptional()
+  @IsUUID()
+  orderId?: string; // Order terkait — konteks di inbox approval (Fase 9.3)
+
+  @IsOptional()
   @IsString()
   alasan?: string;
 

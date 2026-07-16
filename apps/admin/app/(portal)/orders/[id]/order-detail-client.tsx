@@ -6,8 +6,11 @@ import Link from 'next/link';
 import { ArrowLeft, Copy, Upload } from 'lucide-react';
 import { API_URL, apiFetch, apiJson } from '@/lib/api';
 import type { StaffRole } from '@/lib/auth';
-import type { OrderDetail, OrderStatus } from '@/lib/types';
+import type { InvoiceRow, OrderDetail, OrderStatus } from '@/lib/types';
 import { OrderStatusBadge, statusLabel } from '@/components/order-status-badge';
+import { OrderPaymentsSection } from './order-payments-section';
+import { SubmitApprovalDialog } from './submit-approval-dialog';
+import { CreateShipmentDialog } from './create-shipment-dialog';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +46,7 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: St
   const [busy, setBusy] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
   const [uploadItemId, setUploadItemId] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // §5.1: Owner & Manajer full; Tim Penjahit view terbatas (tanpa aksi)
@@ -60,9 +64,21 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: St
     }
   }, [orderId]);
 
+  // Invoice order ini — untuk dropdown refId "Edit Invoice" di dialog approval
+  const loadInvoices = useCallback(async () => {
+    if (!canAct) return;
+    try {
+      const data = await apiFetch<InvoiceRow[]>(`/invoices?orderId=${orderId}`);
+      setInvoices(data);
+    } catch {
+      setInvoices([]);
+    }
+  }, [orderId, canAct]);
+
   useEffect(() => {
     void loadOrder();
-  }, [loadOrder]);
+    void loadInvoices();
+  }, [loadOrder, loadInvoices]);
 
   async function handleUpdateStatus() {
     if (!selectedStatus || !order) return;
@@ -202,6 +218,20 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: St
             <Button variant="outline" onClick={handleDuplicate} disabled={busy}>
               <Copy className="h-4 w-4" /> Repeat Order
             </Button>
+            <SubmitApprovalDialog
+              orderId={order.id}
+              items={order.items.map((i) => ({ id: i.id, label: i.productType }))}
+              invoices={invoices.map((inv) => ({
+                id: inv.id,
+                label: `${inv.jenis} — Rp ${inv.jumlah.toLocaleString('id-ID')}`,
+              }))}
+              onSubmitted={loadOrder}
+            />
+            <CreateShipmentDialog
+              orderId={order.id}
+              orderStatus={order.status}
+              onShipped={loadOrder}
+            />
           </div>
         )}
       </div>
@@ -341,6 +371,9 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: St
               </CardContent>
             </Card>
           ))}
+
+          {/* Pembayaran & invoice (Fase 9.3) — §5.1: Penjahit ❌ Finance */}
+          {canAct && <OrderPaymentsSection orderId={order.id} canAct={canAct} />}
         </div>
 
         {/* Timeline */}
