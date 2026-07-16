@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Bell, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { API_URL } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -39,11 +38,10 @@ export default function NotificationsPage() {
       if (filterChannel) params.set('channel', filterChannel);
       if (filterStatus) params.set('status', filterStatus);
       const query = params.toString() ? `?${params.toString()}` : '';
-      // NotificationController ada di services/notification (port 3001)
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_NOTIFICATION_URL ?? 'http://localhost:3001'}${query}`,
-        { credentials: 'include' },
-      );
+      // Fetch SAME-ORIGIN ke /api/notifications (route handler Next.js) —
+      // server yang meneruskan ke services/notification (port 3001).
+      // Browser tidak pernah bicara lintas origin, cookie httpOnly pasti ikut.
+      const res = await fetch(`/api/notifications${query}`, { credentials: 'include' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.message ?? `HTTP ${res.status}`);
