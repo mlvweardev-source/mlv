@@ -20,6 +20,33 @@ export interface CustomerContactFields {
   customerNoHp: string | null;
 }
 
+/**
+ * auth.otp.requested — WA: kirim kode OTP login pelanggan (Fase 10).
+ *
+ * TIDAK extends CustomerContactFields: saat OTP diminta, customer bisa
+ * saja BELUM terdaftar (registrasi terjadi saat verify). Identitas satu-
+ * satunya adalah nomor HP tujuan.
+ *
+ * PERHATIAN: `kode` adalah plaintext OTP (harus, untuk dirender ke pesan
+ * WA). Event ini ditandai SENSITIF di Notification Domain — isi pesan
+ * TIDAK disimpan utuh di notification_logs (di-mask) supaya staff yang
+ * membuka Notification Center tidak bisa membajak login pelanggan.
+ */
+export interface OtpRequestedPayload {
+  /**
+   * Nomor HP tujuan (identifier pelanggan, terdaftar maupun belum).
+   * Dinamai `customerNoHp` agar resolveRecipient generik di Dispatcher
+   * (channel WHATSAPP membaca field ini) tidak perlu kasus khusus.
+   */
+  customerNoHp: string;
+  /** Kode OTP 6 digit plaintext — hanya hidup di payload event + pesan WA. */
+  kode: string;
+  /** Masa berlaku dalam menit — untuk dirender di template. */
+  berlakuMenit: number;
+  /** Timestamp permintaan — membedakan dua request utk nomor yang sama (dedup). */
+  requestedAt: string;
+}
+
 /** payment.succeeded — WA: "Pembayaran diterima, pesanan masuk antrean" (§7.2) */
 export interface PaymentSucceededPayload extends CustomerContactFields {
   paymentId: string;

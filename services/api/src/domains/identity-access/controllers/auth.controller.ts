@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import type { StaffAuthResult } from '../services/auth.service';
+import type { StaffAuthResult, CustomerAuthResult } from '../services/auth.service';
 import { LoginDto, OtpRequestDto, OtpVerifyDto, GoogleCallbackDto } from '../dto/auth.dto';
 import { AuthGuard, Public, Roles } from '../guards/auth.guard';
 import type { JwtPayload } from '@mlv/auth';
@@ -11,6 +11,9 @@ import { UserRole } from '@mlv/auth';
 // Token TIDAK dikirim di response body — mitigasi XSS (§5 keamanan).
 export const ACCESS_TOKEN_COOKIE = 'mlv_access_token';
 export const REFRESH_TOKEN_COOKIE = 'mlv_refresh_token';
+// Cookie pelanggan (Fase 10 — apps/web). TERPISAH dari cookie staff:
+// di dev semua app share host localhost, tidak boleh saling menimpa.
+export const CUSTOMER_TOKEN_COOKIE = 'mlv_customer_token';
 
 @Controller('auth')
 @UseGuards(AuthGuard)
@@ -57,8 +60,9 @@ export class AuthController {
   }
 
   /**
-   * POST /auth/otp/request — Request OTP sent to phone number.
-   * OTP is logged to console (mock, WhatsApp integration in Fase 8).
+   * POST /auth/otp/request — Request OTP ke nomor HP pelanggan.
+   * Fase 10: kode dikirim via WhatsApp (event auth.otp.requested →
+   * queue notification-events → FonnteChannel di services/notification).
    */
   @Public()
   @Post('otp/request')
@@ -67,23 +71,42 @@ export class AuthController {
   }
 
   /**
-   * POST /auth/otp/verify — Verify OTP code, return JWT.
-   * Creates customer account if first login.
+   * POST /auth/otp/verify — Verifikasi kode OTP.
+   * Sukses: set httpOnly cookie `mlv_customer_token` (pola sama dengan
+   * staff portal — token TIDAK di body). Akun dibuat otomatis saat
+   * login pertama.
    */
   @Public()
   @Post('otp/verify')
-  async otpVerify(@Body() dto: OtpVerifyDto) {
-    return this.authService.verifyOtp(dto.phone, dto.code);
+  async otpVerify(@Body() dto: OtpVerifyDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.verifyOtp(dto.phone, dto.code);
+    this.setCustomerCookie(res, result);
+    return { customer: result.customer };
   }
 
   /**
-   * POST /auth/google/callback — Google OAuth callback.
-   * Mock implementation for Fase 1. Real Google token verification in Fase 10.
+   * POST /auth/google/callback — Login/registrasi via Google (Fase 10).
+   * id_token dari Google Identity Services diverifikasi ke Google
+   * (signature + audience) — mock Fase 1 sudah DICABUT.
+   * Sukses: set httpOnly cookie `mlv_customer_token`.
    */
   @Public()
   @Post('google/callback')
-  async googleCallback(@Body() dto: GoogleCallbackDto) {
-    return this.authService.googleCallback(dto.idToken);
+  async googleCallback(@Body() dto: GoogleCallbackDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.googleCallback(dto.idToken);
+    this.setCustomerCookie(res, result);
+    return { customer: result.customer };
+  }
+
+  /**
+   * POST /auth/customer/logout — Hapus cookie sesi pelanggan (Fase 10).
+   * JWT pelanggan stateless (tanpa refresh token) — cukup clear cookie.
+   */
+  @Public()
+  @Post('customer/logout')
+  customerLogout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie(CUSTOMER_TOKEN_COOKIE, this.cookieOptions());
+    return { message: 'Logout berhasil' };
   }
 
   /**
@@ -120,6 +143,13 @@ export class AuthController {
     res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, {
       ...this.cookieOptions(),
       maxAge: result.refreshTokenMaxAgeMs,
+    });
+  }
+
+  private setCustomerCookie(res: Response, result: CustomerAuthResult) {
+    res.cookie(CUSTOMER_TOKEN_COOKIE, result.accessToken, {
+      ...this.cookieOptions(),
+      maxAge: result.accessTokenMaxAgeMs,
     });
   }
 

@@ -17,6 +17,7 @@
     "demo:production-inventory": "ts-node scripts/demo-production-inventory.ts",
     "demo:finance-shipping": "ts-node scripts/demo-finance-shipping.ts",
     "demo:chat-activity": "ts-node scripts/demo-chat-activity.ts",
+    "demo:customer-auth": "ts-node scripts/demo-customer-auth.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "class-validator": "^0.14.0",
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
+    "google-auth-library": "^10.9.0",
     "multer": "^1.4.5-lts.1",
     "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.0",

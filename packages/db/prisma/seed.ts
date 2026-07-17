@@ -426,6 +426,15 @@ async function main() {
   }[] = [
     // ---- Channel WA (customer-facing, §7.1) ----
     {
+      // Fase 10: kode OTP login pelanggan dikirim via WA (Fonnte) —
+      // menggantikan console.log mock Fase 1. Kode plaintext hanya
+      // hidup di pesan; notification_logs menyimpan versi masked.
+      eventType: 'auth.otp.requested',
+      channel: 'WHATSAPP',
+      templateBody:
+        'Kode OTP login MLV kamu: {{kode}}. Berlaku {{berlakuMenit}} menit. JANGAN bagikan kode ini ke siapa pun, termasuk pihak yang mengaku dari MLV.',
+    },
+    {
       eventType: 'payment.succeeded',
       channel: 'WHATSAPP',
       // Persis contoh §7.2

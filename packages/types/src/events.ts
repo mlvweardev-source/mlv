@@ -29,6 +29,9 @@ export const ALL_QUEUES: QueueName[] = Object.values(QUEUES);
  * Katalog nama event (§7.1). Job name di BullMQ = nama event.
  */
 export const EVENT_NAMES = {
+  // Identity & Access Domain
+  OtpRequested: 'auth.otp.requested',
+
   // Customer Domain
   CustomerRegistered: 'customer.registered',
   CustomerProfileUpdated: 'customer.profile.updated',
@@ -79,6 +82,10 @@ export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
  *   lalu Production & Inventory mengonsumsi OrderConfirmed (cascade §7.2).
  */
 export const EVENT_ROUTING: Record<EventName, QueueName[]> = {
+  // Identity & Access — OTP dikirim sebagai notifikasi WA (Fase 10:
+  // services/api TIDAK memanggil Fonnte langsung; lewat queue notification).
+  [EVENT_NAMES.OtpRequested]: [QUEUES.NOTIFICATION_EVENTS],
+
   // Customer
   [EVENT_NAMES.CustomerRegistered]: [QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.CustomerProfileUpdated]: [QUEUES.NOTIFICATION_EVENTS],

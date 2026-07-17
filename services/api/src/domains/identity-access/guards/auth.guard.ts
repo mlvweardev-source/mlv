@@ -128,7 +128,9 @@ export class AuthGuard implements CanActivate {
       if (type === 'Bearer' && token) return token;
     }
 
-    // Fase 9: staff portal mengirim access token via httpOnly cookie
-    return request.cookies?.['mlv_access_token'] ?? null;
+    // Fase 9: staff portal (apps/admin) via httpOnly cookie.
+    // Fase 10: customer portal (apps/web) via cookie terpisah —
+    // di dev semua app share host localhost, cookie tidak boleh bentrok.
+    return request.cookies?.['mlv_access_token'] ?? request.cookies?.['mlv_customer_token'] ?? null;
   }
 }

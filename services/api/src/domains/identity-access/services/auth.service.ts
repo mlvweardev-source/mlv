@@ -12,6 +12,10 @@ import {
   UserRole,
 } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
+import { EVENT_NAMES } from '@mlv/types';
+import { EventBusService } from '../../../event-bus/event-bus.service';
+import { GoogleAuthService } from './google-auth.service';
+import { OtpRequestedEvent } from '../events/identity.events';
 
 /** Hasil login/refresh staff — dipakai controller untuk set httpOnly cookies. */
 export interface StaffAuthResult {
@@ -27,6 +31,26 @@ export interface StaffAuthResult {
   };
 }
 
+/**
+ * Hasil login pelanggan (OTP/Google) — Fase 10: pola cookie httpOnly
+ * sama seperti staff (token TIDAK di body — mitigasi XSS), tapi cookie
+ * TERPISAH (`mlv_customer_token`): di dev semua app share host localhost,
+ * cookie staff & customer tidak boleh saling menimpa.
+ */
+export interface CustomerAuthResult {
+  accessToken: string;
+  accessTokenMaxAgeMs: number;
+  customer: {
+    id: string;
+    nama: string;
+    noHp: string | null;
+    email: string | null;
+  };
+}
+
+/** Masa berlaku kode OTP (menit) — dirender juga di pesan WA. */
+const OTP_TTL_MINUTES = 5;
+
 @Injectable()
 export class AuthService {
   private readonly jwtSecret: string;
@@ -34,7 +58,11 @@ export class AuthService {
   private readonly accessExpiresIn: string;
   private readonly refreshExpiresDays: number;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly eventBus: EventBusService,
+    private readonly googleAuth: GoogleAuthService,
+  ) {
     this.jwtSecret = this.config.getOrThrow<string>('JWT_SECRET');
     this.jwtExpiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');
     // Fase 9: staff access token pendek (~1 jam) + refresh token (~7 hari).
@@ -200,17 +228,24 @@ export class AuthService {
       data: {
         phone,
         codeHash,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
       },
     });
 
-    // Mock: log ke console (WhatsApp integration di Fase 8)
-    console.log(`[OTP MOCK] Kode OTP untuk ${phone}: ${code}`);
+    // Fase 10: kirim kode via WA (FonnteChannel di services/notification).
+    // BUKAN panggilan langsung — publish event ke queue notification-events
+    // (boundary Fase 8: Fonnte hanya hidup di proses notification).
+    // Publish SETELAH otpCode tersimpan: kalau publish gagal, pelanggan
+    // request ulang saja; kode yang tidak terkirim kadaluarsa sendiri.
+    await this.eventBus.publish(
+      EVENT_NAMES.OtpRequested,
+      new OtpRequestedEvent(phone, code, OTP_TTL_MINUTES, new Date().toISOString()),
+    );
 
-    return { message: 'Kode OTP telah dikirim', phone };
+    return { message: 'Kode OTP telah dikirim via WhatsApp', phone };
   }
 
-  async verifyOtp(phone: string, code: string) {
+  async verifyOtp(phone: string, code: string): Promise<CustomerAuthResult> {
     const otpRecords = await prisma.otpCode.findMany({
       where: {
         phone,
@@ -275,76 +310,92 @@ export class AuthService {
       });
     }
 
-    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
-      sub: customer.id,
-      actorType: ActorType.CUSTOMER,
-    };
-
-    const token = signJwt(payload, this.jwtSecret, this.jwtExpiresIn);
-
-    return {
-      accessToken: token,
-      customer: {
-        id: customer.id,
-        nama: customer.nama,
-        noHp: customer.noHp,
-      },
-    };
+    return this.issueCustomerToken(customer);
   }
 
   // =====================
   // Google OAuth Callback
   // =====================
 
-  async googleCallback(idToken: string) {
-    // TODO: Fase 1 — mock implementation.
-    // Production: verify idToken with Google APIs, extract sub/email/name.
-    // For now, we validate the token is not empty and return a mock response.
-    // Actual Google token verification will be connected in Fase 10 (Customer Portal).
-
-    if (!idToken || idToken.length < 10) {
-      throw new BadRequestException(
-        'Invalid Google ID token. Provide a valid token from Google Sign-In.',
-      );
-    }
-
-    // Mock: treat idToken as a pseudo Google sub ID for development
-    const mockGoogleId = `google_${idToken.substring(0, 20)}`;
-    const mockEmail = `${mockGoogleId}@mock.mlv.dev`;
+  /**
+   * Login/registrasi pelanggan via Google (Fase 10 — mock Fase 1 DICABUT).
+   *
+   * id_token dari Google Identity Services (frontend) diverifikasi
+   * signature + audience-nya via GoogleAuthService (library resmi).
+   * Payload dari client TIDAK pernah dipercaya tanpa verifikasi.
+   *
+   * Matching akun (identifier = Google sub, BUKAN email):
+   * 1. customer dengan googleId = sub → login.
+   * 2. Belum ada + email Google terverifikasi cocok dengan customer
+   *    existing → link akun (tambah auth method GOOGLE).
+   * 3. Tidak ada sama sekali → buat customer baru + auth method GOOGLE.
+   */
+  async googleCallback(idToken: string): Promise<CustomerAuthResult> {
+    const identity = await this.googleAuth.verifyIdToken(idToken);
 
     let customer = await prisma.customer.findFirst({
-      where: { googleId: mockGoogleId },
+      where: { googleId: identity.sub },
     });
+
+    if (!customer && identity.email && identity.emailVerified) {
+      // Link ke akun existing dengan email yang sama (hanya jika email
+      // sudah diverifikasi Google — email tak terverifikasi bisa diklaim
+      // siapa saja, tidak boleh jadi kunci pengambilalihan akun).
+      const existing = await prisma.customer.findUnique({
+        where: { email: identity.email },
+      });
+      if (existing) {
+        customer = await prisma.customer.update({
+          where: { id: existing.id },
+          data: {
+            googleId: identity.sub,
+            authMethods: {
+              create: { tipe: 'GOOGLE', identifier: identity.sub },
+            },
+          },
+        });
+      }
+    }
 
     if (!customer) {
       customer = await prisma.customer.create({
         data: {
-          nama: mockGoogleId,
-          email: mockEmail,
-          googleId: mockGoogleId,
+          nama: identity.nama ?? identity.email ?? 'Pelanggan Google',
+          email: identity.email,
+          googleId: identity.sub,
           authMethods: {
-            create: {
-              tipe: 'GOOGLE',
-              identifier: mockGoogleId,
-            },
+            create: { tipe: 'GOOGLE', identifier: identity.sub },
           },
         },
       });
     }
 
+    return this.issueCustomerToken(customer);
+  }
+
+  /**
+   * Terbitkan JWT pelanggan (Fase 10). Controller men-set-nya sebagai
+   * httpOnly cookie `mlv_customer_token` — token tidak dikirim di body.
+   */
+  private issueCustomerToken(customer: {
+    id: string;
+    nama: string;
+    noHp: string | null;
+    email: string | null;
+  }): CustomerAuthResult {
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       sub: customer.id,
       actorType: ActorType.CUSTOMER,
       email: customer.email ?? undefined,
     };
 
-    const token = signJwt(payload, this.jwtSecret, this.jwtExpiresIn);
-
     return {
-      accessToken: token,
+      accessToken: signJwt(payload, this.jwtSecret, this.jwtExpiresIn),
+      accessTokenMaxAgeMs: this.parseExpiresInMs(this.jwtExpiresIn),
       customer: {
         id: customer.id,
         nama: customer.nama,
+        noHp: customer.noHp,
         email: customer.email,
       },
     };

@@ -20,6 +20,19 @@ export interface DispatchSummary {
 }
 
 /**
+ * Event dengan isi pesan SENSITIF (mis. kode OTP login pelanggan):
+ * pesan tetap dikirim utuh ke penerima, tapi yang disimpan di
+ * notification_logs adalah versi MASKED — staff yang membuka
+ * Notification Center tidak boleh bisa membaca kode OTP orang lain.
+ */
+const SENSITIVE_EVENTS = new Set(['auth.otp.requested']);
+
+/** Ganti semua deret ≥4 digit dengan ****** (cukup untuk kode OTP 6 digit). */
+function maskDigits(message: string): string {
+  return message.replace(/\d{4,}/g, '******');
+}
+
+/**
  * DispatcherService — alur §12:
  *
  *   Event masuk (queue notification-events)
@@ -111,7 +124,9 @@ export class DispatcherService {
           orderId: (payload.orderId as string | undefined) ?? null,
           eventType,
           channel: template.channel,
-          pesan: message,
+          // Event sensitif (OTP): kode di-mask sebelum disimpan — log
+          // boleh menunjukkan BAHWA pesan terkirim, bukan ISI kodenya.
+          pesan: SENSITIVE_EVENTS.has(eventType) ? maskDigits(message) : message,
           statusKirim: result.success ? 'SENT' : 'FAILED',
           errorMsg: result.errorMsg ?? null,
           dedupKey,

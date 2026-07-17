@@ -2,8 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { GoogleAuthService } from './google-auth.service';
+import { EventBusService } from '../../../event-bus/event-bus.service';
 import { prisma } from '@mlv/db';
-import { comparePassword, verifyJwt, ActorType, UserRole } from '@mlv/auth';
+import { comparePassword, compareOtp, verifyJwt, ActorType, UserRole } from '@mlv/auth';
 
 // Mock @mlv/db
 jest.mock('@mlv/db', () => ({
@@ -27,6 +29,7 @@ jest.mock('@mlv/db', () => ({
       findFirst: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
   },
 }));
@@ -43,9 +46,13 @@ jest.mock('@mlv/auth', () => {
 
 describe('AuthService', () => {
   let service: AuthService;
-  let configService: ConfigService;
+  let eventBus: { publish: jest.Mock };
+  let googleAuth: { verifyIdToken: jest.Mock };
 
   beforeEach(async () => {
+    eventBus = { publish: jest.fn().mockResolvedValue(undefined) };
+    googleAuth = { verifyIdToken: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -56,11 +63,12 @@ describe('AuthService', () => {
             get: jest.fn().mockReturnValue('7d'),
           },
         },
+        { provide: EventBusService, useValue: eventBus },
+        { provide: GoogleAuthService, useValue: googleAuth },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    configService = module.get<ConfigService>(ConfigService);
     jest.clearAllMocks();
   });
 
@@ -244,19 +252,189 @@ describe('AuthService', () => {
       (prisma.otpCode.count as jest.Mock).mockResolvedValue(5);
 
       await expect(service.requestOtp('08123456789')).rejects.toThrow(BadRequestException);
+      expect(eventBus.publish).not.toHaveBeenCalled();
     });
 
-    it('should create and log OTP successfully', async () => {
+    it('should create OTP and publish auth.otp.requested event (Fase 10 — bukan console.log)', async () => {
       (prisma.otpCode.count as jest.Mock).mockResolvedValue(2);
       (prisma.otpCode.create as jest.Mock).mockResolvedValue({});
 
       const result = await service.requestOtp('08123456789');
 
       expect(result).toEqual({
-        message: 'Kode OTP telah dikirim',
+        message: 'Kode OTP telah dikirim via WhatsApp',
         phone: '08123456789',
       });
       expect(prisma.otpCode.create).toHaveBeenCalled();
+
+      // Event dipublish ke EventBus (routing → notification-events),
+      // BUKAN panggilan langsung ke Fonnte (boundary Fase 8).
+      expect(eventBus.publish).toHaveBeenCalledTimes(1);
+      const [eventName, payload] = eventBus.publish.mock.calls[0];
+      expect(eventName).toBe('auth.otp.requested');
+      expect(payload.customerNoHp).toBe('08123456789');
+      expect(payload.kode).toMatch(/^\d{6}$/);
+      expect(payload.berlakuMenit).toBe(5);
+
+      // Kode di payload harus sama dengan yang di-hash ke DB (plaintext
+      // tidak pernah disimpan).
+      const createArg = (prisma.otpCode.create as jest.Mock).mock.calls[0][0];
+      expect(createArg.data.codeHash).not.toBe(payload.kode);
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('should return customer + cookie metadata on valid code (untuk httpOnly cookie)', async () => {
+      (prisma.otpCode.findMany as jest.Mock).mockResolvedValue([
+        { id: 'otp-1', codeHash: 'hashed', attempts: 0 },
+      ]);
+      (compareOtp as jest.Mock).mockResolvedValue(true);
+      (prisma.otpCode.update as jest.Mock).mockResolvedValue({});
+      (prisma.customer.findFirst as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Budi',
+        noHp: '08123456789',
+        email: null,
+      });
+
+      const result = await service.verifyOtp('08123456789', '123456');
+
+      expect(result.customer).toEqual({
+        id: 'cust-1',
+        nama: 'Budi',
+        noHp: '08123456789',
+        email: null,
+      });
+      expect(result.accessTokenMaxAgeMs).toBeGreaterThan(0);
+
+      const decoded = verifyJwt(result.accessToken, 'super-secret-key-at-least-32-chars-long');
+      expect(decoded.sub).toBe('cust-1');
+      expect(decoded.actorType).toBe(ActorType.CUSTOMER);
+    });
+  });
+
+  describe('googleCallback', () => {
+    it('should reject when Google verifier rejects the token (fail-closed, tanpa fallback mock)', async () => {
+      googleAuth.verifyIdToken.mockRejectedValue(
+        new UnauthorizedException('Token Google tidak valid'),
+      );
+
+      await expect(service.googleCallback('tampered-token')).rejects.toThrow(UnauthorizedException);
+      expect(prisma.customer.create).not.toHaveBeenCalled();
+    });
+
+    it('should login existing customer matched by googleId (sub)', async () => {
+      googleAuth.verifyIdToken.mockResolvedValue({
+        sub: 'google-sub-1',
+        email: 'budi@gmail.com',
+        emailVerified: true,
+        nama: 'Budi',
+      });
+      (prisma.customer.findFirst as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Budi',
+        noHp: null,
+        email: 'budi@gmail.com',
+      });
+
+      const result = await service.googleCallback('valid-token');
+
+      expect(result.customer.id).toBe('cust-1');
+      expect(prisma.customer.create).not.toHaveBeenCalled();
+
+      const decoded = verifyJwt(result.accessToken, 'super-secret-key-at-least-32-chars-long');
+      expect(decoded.sub).toBe('cust-1');
+      expect(decoded.actorType).toBe(ActorType.CUSTOMER);
+    });
+
+    it('should link Google auth method to existing customer with same VERIFIED email', async () => {
+      googleAuth.verifyIdToken.mockResolvedValue({
+        sub: 'google-sub-2',
+        email: 'siti@example.com',
+        emailVerified: true,
+        nama: 'Siti',
+      });
+      (prisma.customer.findFirst as jest.Mock).mockResolvedValue(null); // belum ada googleId
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-2',
+        nama: 'Siti',
+        noHp: '0811111111',
+        email: 'siti@example.com',
+      });
+      (prisma.customer.update as jest.Mock).mockResolvedValue({
+        id: 'cust-2',
+        nama: 'Siti',
+        noHp: '0811111111',
+        email: 'siti@example.com',
+      });
+
+      const result = await service.googleCallback('valid-token');
+
+      expect(result.customer.id).toBe('cust-2');
+      expect(prisma.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cust-2' },
+          data: expect.objectContaining({
+            googleId: 'google-sub-2',
+            authMethods: { create: { tipe: 'GOOGLE', identifier: 'google-sub-2' } },
+          }),
+        }),
+      );
+      expect(prisma.customer.create).not.toHaveBeenCalled();
+    });
+
+    it('should NOT link by email when email is unverified (account-takeover guard) — create new customer', async () => {
+      googleAuth.verifyIdToken.mockResolvedValue({
+        sub: 'google-sub-3',
+        email: 'siti@example.com',
+        emailVerified: false,
+        nama: 'Fake Siti',
+      });
+      (prisma.customer.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.customer.create as jest.Mock).mockResolvedValue({
+        id: 'cust-3',
+        nama: 'Fake Siti',
+        noHp: null,
+        email: 'siti@example.com',
+      });
+
+      const result = await service.googleCallback('valid-token');
+
+      // findUnique by email TIDAK dipanggil karena email tidak terverifikasi
+      expect(prisma.customer.findUnique).not.toHaveBeenCalled();
+      expect(prisma.customer.create).toHaveBeenCalled();
+      expect(result.customer.id).toBe('cust-3');
+    });
+
+    it('should auto-create customer + GOOGLE auth method on first login', async () => {
+      googleAuth.verifyIdToken.mockResolvedValue({
+        sub: 'google-sub-4',
+        email: 'baru@gmail.com',
+        emailVerified: true,
+        nama: 'Pelanggan Baru',
+      });
+      (prisma.customer.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.customer.create as jest.Mock).mockResolvedValue({
+        id: 'cust-4',
+        nama: 'Pelanggan Baru',
+        noHp: null,
+        email: 'baru@gmail.com',
+      });
+
+      const result = await service.googleCallback('valid-token');
+
+      expect(prisma.customer.create).toHaveBeenCalledWith({
+        data: {
+          nama: 'Pelanggan Baru',
+          email: 'baru@gmail.com',
+          googleId: 'google-sub-4',
+          authMethods: {
+            create: { tipe: 'GOOGLE', identifier: 'google-sub-4' },
+          },
+        },
+      });
+      expect(result.customer.id).toBe('cust-4');
     });
   });
 });

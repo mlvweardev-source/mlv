@@ -5,6 +5,7 @@ export { QUEUES, ALL_QUEUES, EVENT_NAMES, EVENT_ROUTING, EVENT_JOB_OPTIONS } fro
 export type { QueueName, EventName } from './events';
 export type {
   CustomerContactFields,
+  OtpRequestedPayload,
   PaymentSucceededPayload,
   InvoiceIssuedPayload,
   ShipmentCreatedPayload,
