@@ -12,6 +12,7 @@ import { OrderPaymentsSection } from './order-payments-section';
 import { SubmitApprovalDialog } from './submit-approval-dialog';
 import { CreateShipmentDialog } from './create-shipment-dialog';
 import { ChatPanel } from '@/components/chat-panel';
+import { CustomerChatPanel } from '@/components/customer-chat-panel';
 import { ActivityLogSection } from '@/components/activity-log-section';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -417,6 +418,17 @@ export function OrderDetailClient({
             <ChatPanel orderId={order.id} role={role} userId={userId} />
           </CardContent>
         </Card>
+
+        {/* Customer Chat Panel — chat pelanggan ↔ admin (Fase 10.4).
+            §5.1: hanya Owner & Manajer yang bisa balas pelanggan; Penjahit
+            fokus di Production, panel ini disembunyikan. */}
+        {canAct && (
+          <Card className="h-fit">
+            <CardContent className="p-0">
+              <CustomerChatPanel orderId={order.id} userId={userId} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Activity Log Section — di bawah grid */}

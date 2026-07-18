@@ -87,9 +87,10 @@ model Customer {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  authMethods CustomerAuthMethod[]
-  reviews     Review[]
-  orders      Order[]
+  authMethods       CustomerAuthMethod[]
+  reviews           Review[]
+  orders            Order[]
+  customerChatThreads CustomerChatThread[]
 
   @@map("customers")
 }
@@ -184,6 +185,7 @@ model Order {
   approvals    Approval[]
   shipments    Shipment[]
   internalChatThread InternalChatThread? // Fase 9.4: chat internal per order (§11)
+  customerChatThread CustomerChatThread? // Fase 10.4: chat pelanggan↔admin per order (§6.8)
 
   @@map("orders")
 }
@@ -737,4 +739,46 @@ model InternalChatMessage {
 
   @@index([threadId, createdAt])
   @@map("internal_chat_messages")
+}
+
+// ==========================================
+// Customer Chat (§6.8) — Fase 10 Bagian 4
+// ==========================================
+// Chat pelanggan ↔ admin (staf) per order. BUKAN Internal Chat staf-ke-staf.
+// sender_type: 'customer' (pelanggan), 'admin' (staf), 'ai_bot' (Fase 12, schema-only).
+
+/// Tipe pengirim pesan customer chat
+enum CustomerChatSenderType {
+  customer
+  admin
+  ai_bot
+}
+
+/// Thread chat pelanggan — satu per order (unique orderId)
+model CustomerChatThread {
+  id         String   @id @default(uuid())
+  orderId    String   @unique @map("order_id")
+  customerId String   @map("customer_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  messages  CustomerChatMessage[]
+
+  @@map("customer_chat_threads")
+}
+
+/// Pesan dalam thread chat pelanggan
+model CustomerChatMessage {
+  id         String                 @id @default(uuid())
+  threadId   String                 @map("thread_id")
+  senderType CustomerChatSenderType @map("sender_type")
+  senderId   String?                @map("sender_id") // customer id atau staff user id; null untuk ai_bot
+  pesan      String
+  createdAt  DateTime               @default(now()) @map("created_at")
+
+  thread     CustomerChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("customer_chat_messages")
 }

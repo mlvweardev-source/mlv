@@ -12,6 +12,7 @@ import { FinanceModule } from './domains/finance/finance.module';
 import { ShippingModule } from './domains/shipping/shipping.module';
 import { ActivityLogModule } from './common/activity-log/activity-log.module';
 import { InternalChatModule } from './common/internal-chat/internal-chat.module';
+import { CustomerChatModule } from './common/customer-chat/customer-chat.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -33,6 +34,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     // Infrastruktur cross-cutting (Fase 9.4)
     ActivityLogModule,
     InternalChatModule,
+    CustomerChatModule, // Fase 10.4: chat pelanggan↔admin (§6.8)
   ],
   controllers: [AppController],
   providers: [

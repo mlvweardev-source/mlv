@@ -22,6 +22,7 @@ import { formatDate, formatRupiah, OrderDetail, STATUS_LABELS } from '@/lib/orde
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CustomerChatPanel } from '@/components/chat-panel';
 import { cn } from '@/lib/utils';
 
 function eventLabel(value: string) {
@@ -539,6 +540,13 @@ export default function OrderDetailPage() {
           {order.status === 'DIKIRIM' && <PackageCheck className="sr-only" />}
         </aside>
       </div>
+
+      <section aria-labelledby="chat-heading" className="mt-10">
+        <h2 id="chat-heading" className="mb-3 text-xl font-semibold">
+          Butuh bantuan?
+        </h2>
+        <CustomerChatPanel orderId={order.id} />
+      </section>
     </main>
   );
 }
