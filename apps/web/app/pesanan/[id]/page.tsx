@@ -336,16 +336,14 @@ export default function OrderDetailPage() {
                                         >;
                                         const warna = ai.warna as
                                           Record<string, unknown> | undefined;
-                                        const warnaKain = warna?.kain
-                                          ? String(warna.kain)
-                                          : null;
+                                        const warnaKain = warna?.kain ? String(warna.kain) : null;
                                         const warnaAksen = warna?.aksen
                                           ? String(warna.aksen)
                                           : null;
                                         const lokasi = ai.lokasi_print as
                                           Array<Record<string, unknown>> | undefined;
-                                        const kompleksitas =
-                                          ai.estimasi_kompleksitas as string | undefined;
+                                        const kompleksitas = ai.estimasi_kompleksitas as
+                                          string | undefined;
                                         const saran = ai.saran_untuk_pelanggan as
                                           string | undefined;
                                         return (
