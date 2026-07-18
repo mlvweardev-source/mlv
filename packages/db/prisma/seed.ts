@@ -498,6 +498,13 @@ async function main() {
       channel: 'DASHBOARD',
       templateBody: 'Approval {{tipe}} telah diputuskan oleh {{decidedByNama}}: {{status}}.',
     },
+    // ---- Fase 11: Reservation Expiry (auto-cancel) ----
+    {
+      eventType: 'reservation.expired',
+      channel: 'WHATSAPP',
+      templateBody:
+        'Halo {{customerNama}}, pesanan {{orderNumber}} dibatalkan otomatis karena pembayaran DP belum diterima dalam 24 jam. Ingin pesan lagi? Kunjungi mlv.id/pesan atau balas pesan ini. — MLV',
+    },
   ];
 
   for (const t of notificationTemplates) {

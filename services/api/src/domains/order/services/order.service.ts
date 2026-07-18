@@ -726,6 +726,7 @@ export class OrderService {
             orderId: order.id,
             materialId: req.materialId,
             qty: req.totalQty,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Fase 11: TTL 24 jam
           };
 
           try {
@@ -1044,6 +1045,55 @@ export class OrderService {
 
       this.logger.log(`Order ${order.orderNumber} transitioned to LUNAS after pelunasan payment`);
     }
+  }
+
+  /**
+   * Konsumen PaymentExpired (Fase 11): cancel order yang masih MENUNGGU_PEMBAYARAN_DP.
+   * Release stok ditangani oleh InventoryEventsProcessor (sudah sejak Fase 6).
+   *
+   * IDEMPOTEN: skip jika order sudah bukan MENUNGGU_PEMBAYARAN_DP.
+   */
+  async handlePaymentExpired(event: {
+    paymentId: string;
+    orderId: string;
+    orderNumber?: string;
+    customerId?: string;
+    customerNama?: string;
+    customerNoHp?: string | null;
+  }): Promise<void> {
+    const order = await prisma.order.findUnique({
+      where: { id: event.orderId },
+    });
+
+    if (!order) {
+      this.logger.warn(`Order not found: ${event.orderId}`);
+      return;
+    }
+
+    // Idempotency: hanya proses order yang masih menunggu DP
+    if (order.status !== 'MENUNGGU_PEMBAYARAN_DP') {
+      this.logger.log(
+        `PaymentExpired for order ${order.orderNumber} skipped — status sudah ${order.status} (idempotent no-op)`,
+      );
+      return;
+    }
+
+    await this.cancelOrderByFinance(
+      event.orderId,
+      'Pembayaran DP tidak diterima dalam batas waktu (Midtrans expired)',
+    );
+
+    // Publish ReservationExpired → WA notification ke pelanggan
+    // (Fase 11: pastikan pelanggan dapat notifikasi terlepas dari jalur mana yang trigger duluan)
+    await this.eventBus.publish(EVENT_NAMES.ReservationExpired, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId,
+      customerNama: event.customerNama ?? 'Pelanggan',
+      customerNoHp: event.customerNoHp ?? null,
+    });
+
+    this.logger.log(`Order ${order.orderNumber} cancelled due to payment expiry`);
   }
 
   /**

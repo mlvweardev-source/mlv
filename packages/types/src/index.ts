@@ -13,4 +13,5 @@ export type {
   StockLowPayload,
   ApprovalRequestedPayload,
   ApprovalDecidedPayload,
+  ReservationExpiredPayload,
 } from './event-payloads';

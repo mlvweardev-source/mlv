@@ -347,7 +347,7 @@ describe('FinanceService - Webhook Signature Verification', () => {
           jenis: 'DP',
           jumlah: 100000,
           status: 'PENDING',
-          order: { customerId },
+          order: { customerId, orderNumber: 'MLV-20260718-0001' },
         }); // Payment found
 
       (prisma.payment.update as jest.Mock).mockResolvedValue({
@@ -371,12 +371,15 @@ describe('FinanceService - Webhook Signature Verification', () => {
 
       await service.handleMidtransWebhook(payload, validSignature);
 
-      // Verify: PaymentExpired event dipublish (via BullMQ event bus)
+      // Verify: PaymentExpired event dipublish dengan customer info (Fase 11)
       expect(mockEventBus.publish).toHaveBeenCalledWith(
         'payment.expired',
         expect.objectContaining({
           paymentId,
           orderId,
+          orderNumber: 'MLV-20260718-0001',
+          customerNama: 'Budi Santoso',
+          customerNoHp: '+628123456789',
         }),
       );
     });

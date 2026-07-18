@@ -65,6 +65,9 @@ export const EVENT_NAMES = {
   // Shipping Domain
   ShipmentCreated: 'shipment.created',
   ShipmentDelivered: 'shipment.delivered',
+
+  // Reservation Expiry (Fase 11 — scheduler auto-release)
+  ReservationExpired: 'reservation.expired',
 } as const;
 
 export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
@@ -119,7 +122,11 @@ export const EVENT_ROUTING: Record<EventName, QueueName[]> = {
   // Finance
   [EVENT_NAMES.PaymentSucceeded]: [QUEUES.ORDER_EVENTS, QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.PaymentFailed]: [QUEUES.INVENTORY_EVENTS, QUEUES.NOTIFICATION_EVENTS],
-  [EVENT_NAMES.PaymentExpired]: [QUEUES.INVENTORY_EVENTS, QUEUES.NOTIFICATION_EVENTS],
+  [EVENT_NAMES.PaymentExpired]: [
+    QUEUES.ORDER_EVENTS,
+    QUEUES.INVENTORY_EVENTS,
+    QUEUES.NOTIFICATION_EVENTS,
+  ],
   [EVENT_NAMES.InvoiceIssued]: [QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.ApprovalRequested]: [QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.ApprovalDecided]: [QUEUES.NOTIFICATION_EVENTS],
@@ -127,6 +134,9 @@ export const EVENT_ROUTING: Record<EventName, QueueName[]> = {
   // Shipping
   [EVENT_NAMES.ShipmentCreated]: [QUEUES.ORDER_EVENTS, QUEUES.NOTIFICATION_EVENTS],
   [EVENT_NAMES.ShipmentDelivered]: [QUEUES.ORDER_EVENTS, QUEUES.NOTIFICATION_EVENTS],
+
+  // Reservation Expiry — Notification (WA ke pelanggan)
+  [EVENT_NAMES.ReservationExpired]: [QUEUES.NOTIFICATION_EVENTS],
 };
 
 /**

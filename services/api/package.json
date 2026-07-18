@@ -20,6 +20,7 @@
     "demo:customer-auth": "ts-node scripts/demo-customer-auth.ts",
     "demo:checkout": "ts-node scripts/demo-checkout.ts",
     "demo:customer-chat": "ts-node scripts/demo-customer-chat.ts",
+    "demo:reservation-expiry": "ts-node scripts/demo-reservation-expiry.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {

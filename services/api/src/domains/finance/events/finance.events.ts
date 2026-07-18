@@ -44,6 +44,10 @@ export class PaymentExpiredEvent {
   constructor(
     public readonly paymentId: string,
     public readonly orderId: string,
+    public readonly orderNumber?: string,
+    public readonly customerId?: string,
+    public readonly customerNama?: string,
+    public readonly customerNoHp?: string | null,
   ) {}
 }
 

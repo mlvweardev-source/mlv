@@ -13,6 +13,7 @@ import { ShippingModule } from './domains/shipping/shipping.module';
 import { ActivityLogModule } from './common/activity-log/activity-log.module';
 import { InternalChatModule } from './common/internal-chat/internal-chat.module';
 import { CustomerChatModule } from './common/customer-chat/customer-chat.module';
+import { ReservationExpiryModule } from './common/reservation-expiry/reservation-expiry.module';
 import { AuthGuard } from './domains/identity-access/guards/auth.guard';
 
 @Module({
@@ -35,6 +36,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     ActivityLogModule,
     InternalChatModule,
     CustomerChatModule, // Fase 10.4: chat pelanggan↔admin (§6.8)
+    ReservationExpiryModule, // Fase 11: auto-release reservasi kadaluarsa
   ],
   controllers: [AppController],
   providers: [

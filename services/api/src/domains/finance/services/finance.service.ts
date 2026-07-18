@@ -252,9 +252,18 @@ export class FinanceService {
         ),
       );
     } else if (status === 'expire') {
+      // Fase 11: enrich payload dengan kontak pelanggan untuk notifikasi WA
+      const customer = await this.customerService.getCustomerByIdInternal(payment.order.customerId);
       await this.eventBus.publish(
         EVENT_NAMES.PaymentExpired,
-        new PaymentExpiredEvent(payment.id, payment.orderId),
+        new PaymentExpiredEvent(
+          payment.id,
+          payment.orderId,
+          payment.order.orderNumber,
+          payment.order.customerId,
+          customer?.nama ?? 'Pelanggan',
+          customer?.noHp ?? null,
+        ),
       );
     } else if (status === 'cancel' || status === 'deny') {
       await this.eventBus.publish(
@@ -639,7 +648,27 @@ export class FinanceService {
 
       case 'REFUND':
         if (approval.refId) {
-          // Release stock + cancel order via services
+          // Fase 11: panggil Midtrans Refund API sungguhan SEBELUM efek internal
+          const refundResult = await this.callMidtransRefund(approval.refId, alasan);
+
+          // Catat status refund di payment record (untuk jejak staf)
+          if (refundResult.paymentId) {
+            await prisma.payment.update({
+              where: { id: refundResult.paymentId },
+              data: {
+                status: refundResult.success ? 'SUCCESS' : 'FAILED',
+              },
+            });
+          }
+
+          if (!refundResult.success) {
+            // Refund API gagal — JANGAN lanjutkan efek internal
+            throw new BadRequestException(
+              `Refund Midtrans gagal: ${refundResult.error}. Approval tidak dapat dieksekusi.`,
+            );
+          }
+
+          // Efek internal (release stock + cancel order)
           await this.orderService.releaseReservationsForOrder(approval.refId);
           await this.orderService.cancelOrderByFinance(approval.refId, alasan);
         }
@@ -854,6 +883,11 @@ export class FinanceService {
       credit_card: {
         secure: true,
       },
+      // Fase 11: samakan expiry Snap dengan TTL reservasi (24 jam)
+      expiry: {
+        duration: 24,
+        unit: 'hour',
+      },
     };
 
     // Update payment with Midtrans order ID
@@ -887,6 +921,83 @@ export class FinanceService {
 
   private hashSignature(data: string): string {
     return crypto.createHash('sha512').update(data).digest('hex');
+  }
+
+  /**
+   * Panggil Midtrans Refund API (Fase 11).
+   * Mencari payment SUCCESS untuk order, lalu POST ke /v2/{order_id}/refund.
+   *
+   * Return: { success, paymentId, error? }
+   * - success=false + error message jika API gagal atau tidak ada payment SUCCESS
+   * - success=true jika refund berhasil
+   */
+  private async callMidtransRefund(
+    orderId: string,
+    reason?: string,
+  ): Promise<{ success: boolean; paymentId: string | null; error?: string }> {
+    // Cari payment SUCCESS untuk order ini
+    const payment = await prisma.payment.findFirst({
+      where: { orderId, status: 'SUCCESS' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!payment) {
+      return {
+        success: false,
+        paymentId: null,
+        error: 'Tidak ada pembayaran sukses untuk order ini',
+      };
+    }
+
+    if (!payment.midtransOrderId) {
+      return {
+        success: false,
+        paymentId: payment.id,
+        error: 'Payment tidak punya Midtrans order ID',
+      };
+    }
+
+    const serverKey = this.configService.get<string>('MIDTRANS_SERVER_KEY');
+    const isProduction = this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+    const baseUrl = isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+
+    const refundBody: Record<string, unknown> = {
+      refund_id: `refund_${payment.id}_${Date.now()}`,
+    };
+    if (reason) {
+      refundBody.reason = reason;
+    }
+
+    try {
+      const auth = Buffer.from(serverKey + ':').toString('base64');
+      const response = await fetch(`${baseUrl}/v2/${payment.midtransOrderId}/refund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${auth}`,
+        },
+        body: JSON.stringify(refundBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`Midtrans refund API error: ${response.status} — ${errorText}`);
+        return {
+          success: false,
+          paymentId: payment.id,
+          error: `HTTP ${response.status}: ${errorText}`,
+        };
+      }
+
+      const result = await response.json();
+      this.logger.log(
+        `Midtrans refund success for payment ${payment.id}: ${JSON.stringify(result)}`,
+      );
+      return { success: true, paymentId: payment.id };
+    } catch (error: any) {
+      this.logger.error(`Midtrans refund API exception: ${error.message}`);
+      return { success: false, paymentId: payment.id, error: error.message };
+    }
   }
 
   private mapMidtransStatus(

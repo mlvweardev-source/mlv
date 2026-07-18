@@ -811,4 +811,73 @@ describe('OrderService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('handlePaymentExpired', () => {
+    const expiredEvent = {
+      paymentId: 'payment-1',
+      orderId: 'order-1',
+    };
+
+    it('should cancel order when status is MENUNGGU_PEMBAYARAN_DP', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260718-0001',
+        status: 'MENUNGGU_PEMBAYARAN_DP',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+      (prisma.order.update as jest.Mock).mockResolvedValue({ ...mockOrder, status: 'DIBATALKAN' });
+      (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
+
+      await service.handlePaymentExpired(expiredEvent);
+
+      expect(prisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-1' },
+        data: { status: 'DIBATALKAN' },
+      });
+      expect(prisma.orderTimelineEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          tipeEvent: 'DIBATALKAN',
+          deskripsi: expect.stringContaining('Midtrans expired'),
+        }),
+      });
+    });
+
+    it('should skip if order not found', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await service.handlePaymentExpired(expiredEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip (idempotent) if order already DIBATALKAN', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260718-0001',
+        status: 'DIBATALKAN',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+
+      await service.handlePaymentExpired(expiredEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip (idempotent) if order already ANTREAN (payment succeeded)', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        orderNumber: 'MLV-20260718-0001',
+        status: 'ANTREAN',
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+
+      await service.handlePaymentExpired(expiredEvent);
+
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+  });
 });

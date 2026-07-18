@@ -108,3 +108,9 @@ export interface ApprovalDecidedPayload {
   decidedByNama: string;
   alasan?: string;
 }
+
+/** reservation.expired — WA: "Pesanan dibatalkan otomatis karena DP belum dibayar" (Fase 11) */
+export interface ReservationExpiredPayload extends CustomerContactFields {
+  orderId: string;
+  orderNumber: string;
+}

@@ -8,7 +8,7 @@ import { OrderService } from './services/order.service';
  * Order Events Processor — Consumer BullMQ queue `order-events` (§4, §7)
  *
  * Menggantikan OrderEventListener (EventEmitter2) dari Fase 5.
- * Event dikonsumsi: PaymentSucceeded, ProductionCompleted,
+ * Event dikonsumsi: PaymentSucceeded, PaymentExpired, ProductionCompleted,
  * StockReservationFailed (§4 — publisher-nya belum ada, wajar Fase 6).
  *
  * Idempotency (§16): TIDAK mengandalkan dedup BullMQ — setiap handler
@@ -31,6 +31,11 @@ export class OrderEventsProcessor extends WorkerHost {
     switch (job.name) {
       case EVENT_NAMES.PaymentSucceeded:
         await this.orderService.handlePaymentSucceeded(job.data);
+        break;
+
+      case EVENT_NAMES.PaymentExpired:
+        // Fase 11: payment expired → cancel order (release stok via inventory-events)
+        await this.orderService.handlePaymentExpired(job.data);
         break;
 
       case EVENT_NAMES.ProductionCompleted:

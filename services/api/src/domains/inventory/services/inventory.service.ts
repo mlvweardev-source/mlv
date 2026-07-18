@@ -166,7 +166,7 @@ export class InventoryService {
       // 3. Buat reservasi
       const expiresAt = dto.expiresAt
         ? new Date(dto.expiresAt)
-        : new Date(Date.now() + 15 * 60 * 1000); // 15 menit default
+        : new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 jam (Fase 11: samakan dengan Midtrans expiry)
       const newReservation = await tx.stockReservation.create({
         data: {
           orderId,
