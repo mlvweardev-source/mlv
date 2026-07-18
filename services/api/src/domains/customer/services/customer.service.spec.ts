@@ -87,7 +87,9 @@ describe('CustomerService', () => {
 
       (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
       (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'order-1', customerId: 'customer-1', status: 'DIKIRIM',
+        id: 'order-1',
+        customerId: 'customer-1',
+        status: 'DIKIRIM',
       });
       (prismaMock.review.findFirst as jest.Mock).mockResolvedValue(null);
       (prismaMock.review.create as jest.Mock).mockResolvedValue(mockReview);
@@ -113,7 +115,9 @@ describe('CustomerService', () => {
       const actor = { sub: 'customer-1', actorType: ActorType.CUSTOMER };
       (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'customer-1' });
       (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'order-1', customerId: 'customer-1', status: 'SEWING',
+        id: 'order-1',
+        customerId: 'customer-1',
+        status: 'SEWING',
       });
 
       await expect(
@@ -129,7 +133,9 @@ describe('CustomerService', () => {
       const actor = { sub: 'customer-1', actorType: ActorType.CUSTOMER };
       (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'customer-1' });
       (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'order-1', customerId: 'customer-1', status: 'DIKIRIM',
+        id: 'order-1',
+        customerId: 'customer-1',
+        status: 'DIKIRIM',
       });
       (prismaMock.review.findFirst as jest.Mock).mockResolvedValue({ id: 'review-1' });
 

@@ -110,7 +110,9 @@ export default function OrderDetailPage() {
     setBusyAction('repeat');
     setNotice(null);
     try {
-      const draft = await apiFetch<OrderDetail>(`/orders/${order.id}/duplicate`, { method: 'POST' });
+      const draft = await apiFetch<OrderDetail>(`/orders/${order.id}/duplicate`, {
+        method: 'POST',
+      });
       router.push(`/pesan?draft=${draft.id}`);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Repeat order gagal dibuat');
@@ -175,7 +177,9 @@ export default function OrderDetailPage() {
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge>{STATUS_LABELS[order.status] ?? order.status}</Badge>
-            <span className="text-sm text-muted-foreground">Dibuat {formatDate(order.createdAt)}</span>
+            <span className="text-sm text-muted-foreground">
+              Dibuat {formatDate(order.createdAt)}
+            </span>
           </div>
           <h1 className="text-2xl font-bold sm:text-3xl">{order.orderNumber}</h1>
         </div>
@@ -201,7 +205,9 @@ export default function OrderDetailPage() {
         <div className="space-y-10">
           <section aria-labelledby="items-heading">
             <div className="mb-4 flex items-center justify-between">
-              <h2 id="items-heading" className="text-xl font-semibold">Item & Desain</h2>
+              <h2 id="items-heading" className="text-xl font-semibold">
+                Item & Desain
+              </h2>
               <span className="text-sm text-muted-foreground">{order.items.length} item</span>
             </div>
             <div className="space-y-4">
@@ -231,21 +237,30 @@ export default function OrderDetailPage() {
                     </CardHeader>
                     <CardContent className="space-y-5 p-5">
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Ukuran</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                          Ukuran
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {item.sizes.map((size) => (
-                            <Badge key={size.id} variant="outline">{size.ukuran}: {size.qty}</Badge>
+                            <Badge key={size.id} variant="outline">
+                              {size.ukuran}: {size.qty}
+                            </Badge>
                           ))}
                         </div>
                       </div>
 
                       {item.services.length > 0 && (
                         <div>
-                          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Layanan</p>
+                          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                            Layanan
+                          </p>
                           <div className="space-y-1 text-sm">
                             {item.services.map((service) => (
                               <div key={service.id} className="flex justify-between gap-4">
-                                <span>{service.serviceType}{service.lokasi ? ` - ${service.lokasi}` : ''}</span>
+                                <span>
+                                  {service.serviceType}
+                                  {service.lokasi ? ` - ${service.lokasi}` : ''}
+                                </span>
                                 <span>{formatRupiah(service.tarif)}</span>
                               </div>
                             ))}
@@ -254,7 +269,9 @@ export default function OrderDetailPage() {
                       )}
 
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Riwayat versi desain</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                          Riwayat versi desain
+                        </p>
                         {item.designs.length === 0 ? (
                           <p className="text-sm text-muted-foreground">Belum ada file desain.</p>
                         ) : (
@@ -262,13 +279,23 @@ export default function OrderDetailPage() {
                             {[...item.designs]
                               .sort((a, b) => b.versiRevisi - a.versiRevisi)
                               .map((design) => (
-                                <div key={design.id} className="flex items-start justify-between gap-4 py-3 text-sm">
+                                <div
+                                  key={design.id}
+                                  className="flex items-start justify-between gap-4 py-3 text-sm"
+                                >
                                   <div className="min-w-0">
                                     <p className="font-medium">Versi {design.versiRevisi}</p>
-                                    <p className="truncate text-muted-foreground">{design.catatanTeks || 'Tanpa catatan'}</p>
+                                    <p className="truncate text-muted-foreground">
+                                      {design.catatanTeks || 'Tanpa catatan'}
+                                    </p>
                                   </div>
                                   {design.fileUrl && (
-                                    <a href={`${API_URL}${design.fileUrl}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 font-medium underline underline-offset-4">
+                                    <a
+                                      href={`${API_URL}${design.fileUrl}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex min-h-11 items-center gap-2 font-medium underline underline-offset-4"
+                                    >
                                       <FileText className="h-4 w-4" /> Buka
                                     </a>
                                   )}
@@ -286,7 +313,12 @@ export default function OrderDetailPage() {
 
                       {isUploadOpen && item.designRevision.allowed && (
                         <form onSubmit={uploadRevision} className="space-y-3 border-t pt-4">
-                          <label className="block text-sm font-medium" htmlFor={`revision-${item.id}`}>File revisi</label>
+                          <label
+                            className="block text-sm font-medium"
+                            htmlFor={`revision-${item.id}`}
+                          >
+                            File revisi
+                          </label>
                           <input
                             id={`revision-${item.id}`}
                             type="file"
@@ -295,7 +327,12 @@ export default function OrderDetailPage() {
                             onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
                             className="block min-h-11 w-full rounded-md border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2"
                           />
-                          <label className="block text-sm font-medium" htmlFor={`revision-note-${item.id}`}>Catatan revisi</label>
+                          <label
+                            className="block text-sm font-medium"
+                            htmlFor={`revision-note-${item.id}`}
+                          >
+                            Catatan revisi
+                          </label>
                           <textarea
                             id={`revision-note-${item.id}`}
                             value={uploadNote}
@@ -303,8 +340,16 @@ export default function OrderDetailPage() {
                             rows={3}
                             className="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           />
-                          <Button type="submit" disabled={!uploadFile || busyAction === `upload-${item.id}`} className="min-h-11">
-                            {busyAction === `upload-${item.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                          <Button
+                            type="submit"
+                            disabled={!uploadFile || busyAction === `upload-${item.id}`}
+                            className="min-h-11"
+                          >
+                            {busyAction === `upload-${item.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
                             Simpan Versi Baru
                           </Button>
                         </form>
@@ -317,19 +362,32 @@ export default function OrderDetailPage() {
           </section>
 
           <section aria-labelledby="finance-heading">
-            <h2 id="finance-heading" className="mb-4 text-xl font-semibold">Pembayaran & Invoice</h2>
+            <h2 id="finance-heading" className="mb-4 text-xl font-semibold">
+              Pembayaran & Invoice
+            </h2>
             <div className="grid gap-6 md:grid-cols-2">
               <div>
                 <h3 className="mb-2 text-sm font-semibold">Riwayat pembayaran</h3>
                 <div className="divide-y border-y">
                   {order.payments.length === 0 ? (
                     <p className="py-4 text-sm text-muted-foreground">Belum ada pembayaran.</p>
-                  ) : order.payments.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                      <div><p className="font-medium">{payment.jenis}</p><p className="text-muted-foreground">{formatDate(payment.createdAt)}</p></div>
-                      <div className="text-right"><p className="font-medium">{formatRupiah(payment.jumlah)}</p><Badge variant="outline">{payment.status}</Badge></div>
-                    </div>
-                  ))}
+                  ) : (
+                    order.payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between gap-3 py-3 text-sm"
+                      >
+                        <div>
+                          <p className="font-medium">{payment.jenis}</p>
+                          <p className="text-muted-foreground">{formatDate(payment.createdAt)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">{formatRupiah(payment.jumlah)}</p>
+                          <Badge variant="outline">{payment.status}</Badge>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               <div>
@@ -337,14 +395,33 @@ export default function OrderDetailPage() {
                 <div className="divide-y border-y">
                   {order.invoices.length === 0 ? (
                     <p className="py-4 text-sm text-muted-foreground">Belum ada invoice.</p>
-                  ) : order.invoices.map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                      <div><p className="font-medium">Invoice {invoice.jenis}</p><p className="text-muted-foreground">{formatRupiah(invoice.jumlah)}</p></div>
-                      <Button variant="outline" size="icon" title="Unduh invoice PDF" aria-label={`Unduh invoice ${invoice.jenis}`} onClick={() => downloadInvoice(invoice.id)} disabled={busyAction === `invoice-${invoice.id}`}>
-                        {busyAction === `invoice-${invoice.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  ))}
+                  ) : (
+                    order.invoices.map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        className="flex items-center justify-between gap-3 py-3 text-sm"
+                      >
+                        <div>
+                          <p className="font-medium">Invoice {invoice.jenis}</p>
+                          <p className="text-muted-foreground">{formatRupiah(invoice.jumlah)}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Unduh invoice PDF"
+                          aria-label={`Unduh invoice ${invoice.jenis}`}
+                          onClick={() => downloadInvoice(invoice.id)}
+                          disabled={busyAction === `invoice-${invoice.id}`}
+                        >
+                          {busyAction === `invoice-${invoice.id}` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -352,22 +429,51 @@ export default function OrderDetailPage() {
 
           {canReview && (
             <section aria-labelledby="review-heading" className="border-t pt-8">
-              <h2 id="review-heading" className="text-xl font-semibold">Beri Review</h2>
+              <h2 id="review-heading" className="text-xl font-semibold">
+                Beri Review
+              </h2>
               <form onSubmit={submitReview} className="mt-4 max-w-2xl space-y-4">
                 <fieldset>
                   <legend className="mb-2 text-sm font-medium">Rating</legend>
                   <div className="flex gap-1" role="group">
                     {[1, 2, 3, 4, 5].map((value) => (
-                      <button key={value} type="button" onClick={() => setRating(value)} aria-label={`${value} bintang`} aria-pressed={rating === value} className="flex h-11 w-11 items-center justify-center rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                        <Star className={cn('h-5 w-5', value <= rating ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground')} />
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setRating(value)}
+                        aria-label={`${value} bintang`}
+                        aria-pressed={rating === value}
+                        className="flex h-11 w-11 items-center justify-center rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <Star
+                          className={cn(
+                            'h-5 w-5',
+                            value <= rating
+                              ? 'fill-amber-400 text-amber-500'
+                              : 'text-muted-foreground',
+                          )}
+                        />
                       </button>
                     ))}
                   </div>
                 </fieldset>
-                <label className="block text-sm font-medium" htmlFor="review-comment">Komentar</label>
-                <textarea id="review-comment" rows={4} value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                <label className="block text-sm font-medium" htmlFor="review-comment">
+                  Komentar
+                </label>
+                <textarea
+                  id="review-comment"
+                  rows={4}
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
                 <Button type="submit" disabled={busyAction === 'review'} className="min-h-11">
-                  {busyAction === 'review' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Kirim Review
+                  {busyAction === 'review' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}{' '}
+                  Kirim Review
                 </Button>
               </form>
             </section>
@@ -377,32 +483,58 @@ export default function OrderDetailPage() {
         <aside className="space-y-8">
           {order.shipment && (
             <section className="border-y py-5" aria-labelledby="shipment-heading">
-              <div className="mb-4 flex items-center gap-2"><Truck className="h-5 w-5" /><h2 id="shipment-heading" className="font-semibold">Pengiriman</h2></div>
+              <div className="mb-4 flex items-center gap-2">
+                <Truck className="h-5 w-5" />
+                <h2 id="shipment-heading" className="font-semibold">
+                  Pengiriman
+                </h2>
+              </div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Kurir</dt><dd className="text-right font-medium">{order.shipment.kurir}</dd>
-                <dt className="text-muted-foreground">No. resi</dt><dd className="break-all text-right font-medium">{order.shipment.noResi ?? 'Belum tersedia'}</dd>
-                <dt className="text-muted-foreground">Status</dt><dd className="text-right font-medium">{eventLabel(order.shipment.status)}</dd>
-                <dt className="text-muted-foreground">Diperbarui</dt><dd className="text-right">{formatDate(order.shipment.updatedAt)}</dd>
+                <dt className="text-muted-foreground">Kurir</dt>
+                <dd className="text-right font-medium">{order.shipment.kurir}</dd>
+                <dt className="text-muted-foreground">No. resi</dt>
+                <dd className="break-all text-right font-medium">
+                  {order.shipment.noResi ?? 'Belum tersedia'}
+                </dd>
+                <dt className="text-muted-foreground">Status</dt>
+                <dd className="text-right font-medium">{eventLabel(order.shipment.status)}</dd>
+                <dt className="text-muted-foreground">Diperbarui</dt>
+                <dd className="text-right">{formatDate(order.shipment.updatedAt)}</dd>
               </dl>
             </section>
           )}
 
           <section aria-labelledby="timeline-heading">
-            <div className="mb-5 flex items-center gap-2"><Clock3 className="h-5 w-5" /><h2 id="timeline-heading" className="font-semibold">Live Tracking</h2></div>
+            <div className="mb-5 flex items-center gap-2">
+              <Clock3 className="h-5 w-5" />
+              <h2 id="timeline-heading" className="font-semibold">
+                Live Tracking
+              </h2>
+            </div>
             <ol className="relative ml-2 border-l pl-6">
               {[...order.timeline].reverse().map((event, index) => (
                 <li key={event.id} className="relative pb-7 last:pb-0">
-                  <span className={cn('absolute -left-[31px] top-0 flex h-4 w-4 items-center justify-center rounded-full border-2 border-background', index === 0 ? 'bg-foreground' : 'bg-muted-foreground')} />
+                  <span
+                    className={cn(
+                      'absolute -left-[31px] top-0 flex h-4 w-4 items-center justify-center rounded-full border-2 border-background',
+                      index === 0 ? 'bg-foreground' : 'bg-muted-foreground',
+                    )}
+                  />
                   <p className="text-sm font-semibold">{eventLabel(event.tipeEvent)}</p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{event.deskripsi}</p>
-                  <time className="mt-1 block text-xs text-muted-foreground">{formatDate(event.createdAt)}</time>
+                  <time className="mt-1 block text-xs text-muted-foreground">
+                    {formatDate(event.createdAt)}
+                  </time>
                 </li>
               ))}
             </ol>
           </section>
 
           {order.status === 'DIKIRIM' && reviewSent && (
-            <div className="flex items-start gap-3 border-y py-4 text-sm"><CheckCircle2 className="h-5 w-5 text-emerald-600" /><span>Review sudah dikirim untuk pesanan ini.</span></div>
+            <div className="flex items-start gap-3 border-y py-4 text-sm">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <span>Review sudah dikirim untuk pesanan ini.</span>
+            </div>
           )}
           {order.status === 'DIKIRIM' && <PackageCheck className="sr-only" />}
         </aside>

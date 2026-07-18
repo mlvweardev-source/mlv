@@ -398,10 +398,7 @@ export class FinanceService {
    * File disimpan ke uploads/invoices/ (pola upload desain Fase 3),
    * di-serve via static /uploads — siap di-swap ke S3-compatible nanti.
    */
-  async getInvoicePdf(
-    invoiceId: string,
-    actor?: JwtPayload,
-  ): Promise<{ pdfUrl: string }> {
+  async getInvoicePdf(invoiceId: string, actor?: JwtPayload): Promise<{ pdfUrl: string }> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {

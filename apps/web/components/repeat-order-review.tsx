@@ -139,21 +139,39 @@ export function RepeatOrderReview({ orderId }: { orderId: string }) {
   }
 
   if (loading) {
-    return <div className="flex min-h-[65vh] items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat Draft repeat order...</div>;
+    return (
+      <div className="flex min-h-[65vh] items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat Draft repeat order...
+      </div>
+    );
   }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-      <Button variant="ghost" onClick={() => router.push(`/pesanan/${orderId}`)} className="mb-5 min-h-11 px-0 hover:bg-transparent">
+      <Button
+        variant="ghost"
+        onClick={() => router.push(`/pesanan/${orderId}`)}
+        className="mb-5 min-h-11 px-0 hover:bg-transparent"
+      >
         <ArrowLeft className="h-4 w-4" /> Kembali ke detail
       </Button>
       <header className="mb-8 border-b pb-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="outline">Draft Repeat Order</Badge><span className="text-sm text-muted-foreground">{order?.orderNumber}</span></div>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Draft Repeat Order</Badge>
+          <span className="text-sm text-muted-foreground">{order?.orderNumber}</span>
+        </div>
         <h1 className="text-2xl font-bold sm:text-3xl">Review & Edit Pesanan</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Periksa kembali produk, ukuran, desain, layanan, harga terbaru, dan ketersediaan stok sebelum checkout.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Periksa kembali produk, ukuran, desain, layanan, harga terbaru, dan ketersediaan stok
+          sebelum checkout.
+        </p>
       </header>
 
-      {notice && <div className="mb-6 border-l-4 border-foreground bg-muted px-4 py-3 text-sm" role="status">{notice}</div>}
+      {notice && (
+        <div className="mb-6 border-l-4 border-foreground bg-muted px-4 py-3 text-sm" role="status">
+          {notice}
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.7fr)]">
         <div className="space-y-5">
@@ -161,25 +179,78 @@ export function RepeatOrderReview({ orderId }: { orderId: string }) {
             const source = order?.items.find((candidate) => candidate.id === item.id);
             return (
               <Card key={item.id} className="rounded-md shadow-none">
-                <CardHeader className="border-b p-5"><CardTitle className="text-base">Item {index + 1}</CardTitle></CardHeader>
+                <CardHeader className="border-b p-5">
+                  <CardTitle className="text-base">Item {index + 1}</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-5 p-5">
                   <div>
-                    <label htmlFor={`product-${item.id}`} className="mb-2 block text-sm font-medium">Jenis produk</label>
-                    <select id={`product-${item.id}`} value={item.productType} onChange={(event) => updateItem(item.id, { productType: event.target.value })} className="min-h-11 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {Object.keys(PRODUCT_PRICES).map((product) => <option key={product}>{product}</option>)}
+                    <label
+                      htmlFor={`product-${item.id}`}
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      Jenis produk
+                    </label>
+                    <select
+                      id={`product-${item.id}`}
+                      value={item.productType}
+                      onChange={(event) => updateItem(item.id, { productType: event.target.value })}
+                      className="min-h-11 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {Object.keys(PRODUCT_PRICES).map((product) => (
+                        <option key={product}>{product}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <p className="mb-2 text-sm font-medium">Kuantitas per ukuran</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                       {sizesFor(item).map((size) => (
-                        <label key={size} className="text-center text-xs text-muted-foreground">{size}<Input type="number" min="0" value={item.sizes[size] || ''} onChange={(event) => updateQty(item.id, size, event.target.value)} className="mt-1 text-center text-sm" /></label>
+                        <label key={size} className="text-center text-xs text-muted-foreground">
+                          {size}
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.sizes[size] || ''}
+                            onChange={(event) => updateQty(item.id, size, event.target.value)}
+                            className="mt-1 text-center text-sm"
+                          />
+                        </label>
                       ))}
                     </div>
                   </div>
                   <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
-                    <div><p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Layanan tersalin</p>{source?.services.length ? source.services.map((service) => <p key={service.id} className="text-sm">{service.serviceType}{service.lokasi ? ` - ${service.lokasi}` : ''}</p>) : <p className="text-sm text-muted-foreground">Tanpa layanan tambahan</p>}</div>
-                    <div><p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Desain terbaru</p>{source?.designs[0]?.fileUrl ? <a href={`${API_URL}${source.designs[0].fileUrl}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium underline underline-offset-4"><FileText className="h-4 w-4" /> Buka desain</a> : <p className="text-sm text-muted-foreground">Tidak ada file desain</p>}</div>
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                        Layanan tersalin
+                      </p>
+                      {source?.services.length ? (
+                        source.services.map((service) => (
+                          <p key={service.id} className="text-sm">
+                            {service.serviceType}
+                            {service.lokasi ? ` - ${service.lokasi}` : ''}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Tanpa layanan tambahan</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                        Desain terbaru
+                      </p>
+                      {source?.designs[0]?.fileUrl ? (
+                        <a
+                          href={`${API_URL}${source.designs[0].fileUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 text-sm font-medium underline underline-offset-4"
+                        >
+                          <FileText className="h-4 w-4" /> Buka desain
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Tidak ada file desain</p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -189,16 +260,60 @@ export function RepeatOrderReview({ orderId }: { orderId: string }) {
 
         <aside>
           <div className="sticky top-20 border-y py-5">
-            <div className="mb-5 flex items-center gap-2"><PackageCheck className="h-5 w-5" /><h2 className="font-semibold">Ringkasan terbaru</h2></div>
-            <div className="space-y-3 text-sm">
-              {items.map((item) => <div key={item.id} className="flex justify-between gap-3"><span className="text-muted-foreground">{item.productType}</span><span>{Object.values(item.sizes).reduce((sum, qty) => sum + qty, 0)} pcs</span></div>)}
+            <div className="mb-5 flex items-center gap-2">
+              <PackageCheck className="h-5 w-5" />
+              <h2 className="font-semibold">Ringkasan terbaru</h2>
             </div>
-            <div className="mt-5 flex items-center justify-between border-t pt-4"><span className="font-semibold">Estimasi total</span><span className="font-bold">{formatRupiah(total)}</span></div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">Total final dan stok divalidasi ulang oleh sistem saat checkout.</p>
-            <label className="mt-5 flex items-start gap-3 border-t pt-4 text-sm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1 h-4 w-4 accent-primary" /><span>Saya sudah memeriksa item, ukuran, desain, layanan, dan estimasi harga.</span></label>
+            <div className="space-y-3 text-sm">
+              {items.map((item) => (
+                <div key={item.id} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{item.productType}</span>
+                  <span>{Object.values(item.sizes).reduce((sum, qty) => sum + qty, 0)} pcs</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex items-center justify-between border-t pt-4">
+              <span className="font-semibold">Estimasi total</span>
+              <span className="font-bold">{formatRupiah(total)}</span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Total final dan stok divalidasi ulang oleh sistem saat checkout.
+            </p>
+            <label className="mt-5 flex items-start gap-3 border-t pt-4 text-sm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+                className="mt-1 h-4 w-4 accent-primary"
+              />
+              <span>Saya sudah memeriksa item, ukuran, desain, layanan, dan estimasi harga.</span>
+            </label>
             <div className="mt-5 grid gap-3">
-              <Button variant="outline" onClick={saveDraft} disabled={busy !== null} className="min-h-11">{busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan Draft</Button>
-              <Button onClick={checkout} disabled={busy !== null || !confirmed} className="min-h-11">{busy === 'checkout' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Checkout & Bayar DP</Button>
+              <Button
+                variant="outline"
+                onClick={saveDraft}
+                disabled={busy !== null}
+                className="min-h-11"
+              >
+                {busy === 'save' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}{' '}
+                Simpan Draft
+              </Button>
+              <Button
+                onClick={checkout}
+                disabled={busy !== null || !confirmed}
+                className="min-h-11"
+              >
+                {busy === 'checkout' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}{' '}
+                Checkout & Bayar DP
+              </Button>
             </div>
           </div>
         </aside>

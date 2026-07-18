@@ -103,7 +103,9 @@ export function OrderHistory() {
               <div className="min-w-0 text-sm">
                 <p className="mb-1 font-medium">Ringkasan item</p>
                 <p className="truncate text-muted-foreground">
-                  {order.itemSummary.map((item) => `${item.productType} ${item.qty} pcs`).join(', ')}
+                  {order.itemSummary
+                    .map((item) => `${item.productType} ${item.qty} pcs`)
+                    .join(', ')}
                 </p>
               </div>
 

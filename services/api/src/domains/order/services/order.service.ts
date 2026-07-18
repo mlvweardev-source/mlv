@@ -1359,9 +1359,7 @@ export class OrderService {
         deadline: null,
         items: {
           create: originalOrder.items.map((item) => {
-            const latestDesign = [...item.designs].sort(
-              (a, b) => b.versiRevisi - a.versiRevisi,
-            )[0];
+            const latestDesign = [...item.designs].sort((a, b) => b.versiRevisi - a.versiRevisi)[0];
             return {
               productType: item.productType,
               basePriceSnapshot: priceByProduct.get(item.productType) ?? item.basePriceSnapshot,
@@ -1370,12 +1368,14 @@ export class OrderService {
               },
               designs: latestDesign
                 ? {
-                    create: [{
-                      fileUrl: latestDesign.fileUrl,
-                      catatanTeks: latestDesign.catatanTeks,
-                      statusKonfirmasi: 'MENUNGGU',
-                      versiRevisi: 1,
-                    }],
+                    create: [
+                      {
+                        fileUrl: latestDesign.fileUrl,
+                        catatanTeks: latestDesign.catatanTeks,
+                        statusKonfirmasi: 'MENUNGGU',
+                        versiRevisi: 1,
+                      },
+                    ],
                   }
                 : undefined,
               services: {
