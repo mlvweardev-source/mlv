@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { prisma } from '@mlv/db';
 import type { Prisma } from '@mlv/db';
 import { ActorType, UserRole } from '@mlv/auth';
@@ -63,6 +64,7 @@ export class OrderService {
     private readonly eventBus: EventBusService,
     private readonly activityLog: ActivityLogService,
     private readonly inventoryService: InventoryService,
+    private readonly configService: ConfigService,
     @Inject(forwardRef(() => ProductionService))
     private readonly productionService: ProductionService,
   ) {}
@@ -475,6 +477,7 @@ export class OrderService {
 
   /**
    * Helper: buat record desain dan timeline event.
+   * Fase 12: panggil ai-gateway untuk analisis desain (non-blocking, fallback-safe).
    */
   private async createDesignRecord(
     orderId: string,
@@ -511,7 +514,119 @@ export class OrderService {
       },
     });
 
+    // Fase 12: panggil ai-gateway untuk analisis desain (synchronous with timeout)
+    // AI selalu asistif — kalau gagal, desain tetap tersimpan tanpa hasil AI
+    const aiResult = await this.analyzeDesignWithAi(design.id, productType, catatanTeks, actor.sub);
+
+    if (aiResult !== undefined) {
+      // Update design with AI result
+      const updatedDesign = await prisma.orderDesign.update({
+        where: { id: design.id },
+        data: { hasilEkstraksiAi: (aiResult ?? null) as any },
+      });
+      return updatedDesign;
+    }
+
     return design;
+  }
+
+  /**
+   * Panggil ai-gateway untuk analisis desain (Fase 12).
+   * Fallback-safe: kalau ai-gateway gagal/timeout, return undefined.
+   * Timeout 10 detik — AI tidak boleh memblokir alur inti (§17.5).
+   */
+  private async analyzeDesignWithAi(
+    designId: string,
+    productType: string,
+    catatanTeks: string | undefined,
+    customerId: string,
+  ): Promise<unknown | undefined> {
+    const aiGatewayUrl = this.configService.get<string>('AI_GATEWAY_URL', 'http://localhost:3002');
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000); // 10 detik timeout
+
+      const response = await fetch(`${aiGatewayUrl}/ai/design-analyzer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Customer-ID': customerId,
+        },
+        body: JSON.stringify({
+          catatanTeks: catatanTeks || undefined,
+          productType,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        this.logger.warn(`AI gateway returned ${response.status} for design ${designId}`);
+        return undefined;
+      }
+
+      const data = (await response.json()) as { hasil_ekstraksi_ai: unknown };
+
+      this.logger.log(`AI analysis completed for design ${designId}`);
+      return data.hasil_ekstraksi_ai ?? undefined;
+    } catch (error: any) {
+      // AI selalu asistif, tidak pernah blocking (§17.4, §17.5)
+      // Kalau ai-gateway gagal atau timeout, desain tetap jalan tanpa AI
+      this.logger.warn(`AI gateway call failed for design ${designId}: ${error.message}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * PATCH /orders/:id/designs/:designId/confirm — Konfirmasi atau tolak hasil AI.
+   * Pelanggan review hasil ekstraksi AI sebagai saran, bukan otomatis final (§17.4).
+   */
+  async confirmDesignAiResult(
+    orderId: string,
+    designId: string,
+    statusKonfirmasi: 'DITERIMA' | 'DITOLAK',
+    actor: JwtPayload,
+  ) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException('Order tidak ditemukan');
+    }
+
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
+    }
+
+    const design = await prisma.orderDesign.findUnique({ where: { id: designId } });
+    if (!design) {
+      throw new NotFoundException('Desain tidak ditemukan');
+    }
+
+    // Verify design belongs to this order
+    const orderItem = await prisma.orderItem.findFirst({
+      where: { id: design.orderItemId, orderId },
+    });
+    if (!orderItem) {
+      throw new NotFoundException('Desain tidak termasuk dalam order ini');
+    }
+
+    const updated = await prisma.orderDesign.update({
+      where: { id: designId },
+      data: { statusKonfirmasi },
+    });
+
+    // Timeline event
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId,
+        tipeEvent: 'DESAIN_DIKONFIRMASI',
+        deskripsi: `Hasil analisis AI desain v${design.versiRevisi} ${statusKonfirmasi === 'DITERIMA' ? 'diterima' : 'ditolak'} oleh pelanggan`,
+        actorId: actor.sub,
+      },
+    });
+
+    return updated;
   }
 
   // ==========================================

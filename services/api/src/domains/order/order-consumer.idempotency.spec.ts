@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { OrderService } from './services/order.service';
 import { InventoryService } from '../inventory/services/inventory.service';
 import { ProductionService } from '../production/services/production.service';
@@ -56,6 +57,11 @@ describe('OrderService - Event Consumer Idempotency (§16)', () => {
         { provide: ProductionService, useValue: {} },
         // ActivityLogService (Fase 9.4)
         { provide: ActivityLogService, useValue: { log: jest.fn() } },
+        // ConfigService (Fase 12 — AI_GATEWAY_URL)
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') },
+        },
       ],
     }).compile();
 

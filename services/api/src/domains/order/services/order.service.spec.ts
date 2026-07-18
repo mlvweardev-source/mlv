@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { OrderService } from './order.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { ProductionService } from '../../production/services/production.service';
@@ -114,6 +115,11 @@ describe('OrderService', () => {
         {
           provide: ActivityLogService,
           useValue: mockActivityLog,
+        },
+        // ConfigService (Fase 12 — AI_GATEWAY_URL)
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') },
         },
       ],
     }).compile();

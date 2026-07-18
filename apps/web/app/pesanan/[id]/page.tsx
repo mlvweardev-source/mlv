@@ -13,6 +13,7 @@ import {
   PackageCheck,
   RefreshCw,
   Send,
+  Sparkles,
   Star,
   Truck,
   Upload,
@@ -88,6 +89,28 @@ export default function OrderDetailPage() {
       await loadOrder();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Upload revisi gagal');
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function confirmDesign(designId: string, status: 'DITERIMA' | 'DITOLAK') {
+    setBusyAction(`confirm-${designId}`);
+    setNotice(null);
+    try {
+      await apiFetch(`/orders/${id}/designs/${designId}/confirm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusKonfirmasi: status }),
+      });
+      setNotice(
+        status === 'DITERIMA'
+          ? 'Hasil analisis AI desain diterima.'
+          : 'Hasil analisis AI desain ditolak.',
+      );
+      await loadOrder();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal mengkonfirmasi desain');
     } finally {
       setBusyAction(null);
     }
@@ -280,25 +303,134 @@ export default function OrderDetailPage() {
                             {[...item.designs]
                               .sort((a, b) => b.versiRevisi - a.versiRevisi)
                               .map((design) => (
-                                <div
-                                  key={design.id}
-                                  className="flex items-start justify-between gap-4 py-3 text-sm"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="font-medium">Versi {design.versiRevisi}</p>
-                                    <p className="truncate text-muted-foreground">
-                                      {design.catatanTeks || 'Tanpa catatan'}
-                                    </p>
+                                <div key={design.id} className="py-3 text-sm">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <p className="font-medium">Versi {design.versiRevisi}</p>
+                                      <p className="truncate text-muted-foreground">
+                                        {design.catatanTeks || 'Tanpa catatan'}
+                                      </p>
+                                    </div>
+                                    {design.fileUrl && (
+                                      <a
+                                        href={`${API_URL}${design.fileUrl}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex min-h-11 items-center gap-2 font-medium underline underline-offset-4"
+                                      >
+                                        <FileText className="h-4 w-4" /> Buka
+                                      </a>
+                                    )}
                                   </div>
-                                  {design.fileUrl && (
-                                    <a
-                                      href={`${API_URL}${design.fileUrl}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex min-h-11 items-center gap-2 font-medium underline underline-offset-4"
-                                    >
-                                      <FileText className="h-4 w-4" /> Buka
-                                    </a>
+
+                                  {/* Fase 12: Hasil Analisis AI */}
+                                  {design.hasilEkstraksiAi && (
+                                    <div className="mt-3 rounded-lg border bg-muted/30 p-3 space-y-2">
+                                      <p className="text-xs font-semibold uppercase text-primary flex items-center gap-1">
+                                        <Sparkles className="h-3 w-3" /> Analisis AI
+                                      </p>
+                                      {(() => {
+                                        const ai = design.hasilEkstraksiAi as Record<
+                                          string,
+                                          unknown
+                                        >;
+                                        const warna = ai.warna as
+                                          Record<string, unknown> | undefined;
+                                        const warnaKain = warna?.kain
+                                          ? String(warna.kain)
+                                          : null;
+                                        const warnaAksen = warna?.aksen
+                                          ? String(warna.aksen)
+                                          : null;
+                                        const lokasi = ai.lokasi_print as
+                                          Array<Record<string, unknown>> | undefined;
+                                        const kompleksitas =
+                                          ai.estimasi_kompleksitas as string | undefined;
+                                        const saran = ai.saran_untuk_pelanggan as
+                                          string | undefined;
+                                        return (
+                                          <div className="space-y-1 text-xs">
+                                            {warnaKain && (
+                                              <p>
+                                                <span className="font-medium">Warna kain:</span>{' '}
+                                                {warnaKain}
+                                              </p>
+                                            )}
+                                            {warnaAksen && (
+                                              <p>
+                                                <span className="font-medium">Warna aksen:</span>{' '}
+                                                {warnaAksen}
+                                              </p>
+                                            )}
+                                            {lokasi && lokasi.length > 0 && (
+                                              <div>
+                                                <p className="font-medium">Lokasi print:</p>
+                                                <ul className="ml-3 list-disc">
+                                                  {lokasi.map((l, i) => (
+                                                    <li key={i}>
+                                                      {String(l.lokasi)} — {String(l.deskripsi)} (
+                                                      {String(l.teknik)})
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            )}
+                                            {kompleksitas && (
+                                              <p>
+                                                <span className="font-medium">Kompleksitas:</span>{' '}
+                                                <Badge
+                                                  variant={
+                                                    kompleksitas === 'TINGGI'
+                                                      ? 'destructive'
+                                                      : kompleksitas === 'SEDANG'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                  }
+                                                >
+                                                  {kompleksitas}
+                                                </Badge>
+                                              </p>
+                                            )}
+                                            {saran && (
+                                              <p className="italic text-muted-foreground">
+                                                Saran: {saran}
+                                              </p>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Confirm/Reject buttons */}
+                                      {design.statusKonfirmasi === 'MENUNGGU' && (
+                                        <div className="flex gap-2 pt-2">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => confirmDesign(design.id, 'DITERIMA')}
+                                            disabled={busyAction === `confirm-${design.id}`}
+                                            className="min-h-9"
+                                          >
+                                            <CheckCircle2 className="mr-1 h-3 w-3" /> Terima
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => confirmDesign(design.id, 'DITOLAK')}
+                                            disabled={busyAction === `confirm-${design.id}`}
+                                            className="min-h-9"
+                                          >
+                                            Tolak
+                                          </Button>
+                                        </div>
+                                      )}
+                                      {design.statusKonfirmasi === 'DITERIMA' && (
+                                        <p className="text-xs text-green-600 flex items-center gap-1">
+                                          <CheckCircle2 className="h-3 w-3" /> Diterima
+                                        </p>
+                                      )}
+                                      {design.statusKonfirmasi === 'DITOLAK' && (
+                                        <p className="text-xs text-red-600">Ditolak</p>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               ))}

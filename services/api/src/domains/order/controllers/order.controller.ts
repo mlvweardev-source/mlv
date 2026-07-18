@@ -241,6 +241,25 @@ export class OrderController {
   }
 
   /**
+   * PATCH /orders/:id/designs/:designId/confirm — Konfirmasi atau tolak hasil AI.
+   * Pelanggan review hasil ekstraksi AI sebagai saran, bukan otomatis final (§17.4).
+   */
+  @Patch(':id/designs/:designId/confirm')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  @AllowCustomer()
+  async confirmDesignAiResult(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('designId', ParseUUIDPipe) designId: string,
+    @Body('statusKonfirmasi') statusKonfirmasi: 'DITERIMA' | 'DITOLAK',
+    @Req() req: { user: JwtPayload },
+  ) {
+    if (!statusKonfirmasi || !['DITERIMA', 'DITOLAK'].includes(statusKonfirmasi)) {
+      throw new BadRequestException('statusKonfirmasi harus DITERIMA atau DITOLAK');
+    }
+    return this.orderService.confirmDesignAiResult(id, designId, statusKonfirmasi, req.user);
+  }
+
+  /**
    * POST /orders/:id/items/:itemId/services — Tambah layanan tambahan.
    */
   @Post(':id/items/:itemId/services')

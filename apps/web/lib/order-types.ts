@@ -8,6 +8,7 @@ export interface OrderDesign {
   id: string;
   fileUrl: string | null;
   catatanTeks: string | null;
+  hasilEkstraksiAi: Record<string, unknown> | null;
   statusKonfirmasi: string;
   versiRevisi: number;
   createdAt: string;

@@ -82,6 +82,7 @@ export default function PesanPage() {
   const [checkoutStage, setCheckoutStage] = useState('');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [repeatDraftId, setRepeatDraftId] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<Record<string, unknown> | null>(null);
 
   // 1. Check Auth state & Restore draft if any
   useEffect(() => {
@@ -223,7 +224,7 @@ export default function PesanPage() {
 
       // Step 3: Upload Design File if selected
       if (designFile) {
-        setCheckoutStage('Mengunggah file desain...');
+        setCheckoutStage('Mengunggah file desain & analisis AI...');
         const formData = new FormData();
         formData.append('file', designFile);
         if (catatanTeks) {
@@ -240,6 +241,12 @@ export default function PesanPage() {
 
         if (!response.ok) {
           throw new Error('Gagal mengunggah file desain');
+        }
+
+        // Capture AI analysis result (Fase 12)
+        const designData = await response.json();
+        if (designData?.hasilEkstraksiAi) {
+          setAiResult(designData.hasilEkstraksiAi as Record<string, unknown>);
         }
       }
 
@@ -536,6 +543,80 @@ export default function PesanPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Fase 12: AI Design Analysis Result */}
+            {aiResult && (
+              <Card className="border-primary/30 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    Hasil Analisis AI
+                  </CardTitle>
+                  <CardDescription>
+                    Berikut hasil analisis otomatis dari desain Anda. Ini hanya saran — silakan
+                    review sebelum melanjutkan.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {(() => {
+                    const warna = aiResult.warna as Record<string, unknown> | undefined;
+                    const warnaKain = warna?.kain ? String(warna.kain) : '-';
+                    const warnaAksen = warna?.aksen ? String(warna.aksen) : null;
+                    const lokasi = aiResult.lokasi_print as
+                      Array<Record<string, unknown>> | undefined;
+                    const kompleksitas = aiResult.estimasi_kompleksitas as string | undefined;
+                    const saran = aiResult.saran_untuk_pelanggan as string | undefined;
+                    return (
+                      <>
+                        {warna && (
+                          <div>
+                            <p className="font-medium">Warna:</p>
+                            <p className="text-muted-foreground">
+                              Kain: {warnaKain}
+                              {warnaAksen && <> | Aksen: {warnaAksen}</>}
+                            </p>
+                          </div>
+                        )}
+                        {lokasi && lokasi.length > 0 && (
+                          <div>
+                            <p className="font-medium">Lokasi Print:</p>
+                            <ul className="ml-4 list-disc text-muted-foreground">
+                              {lokasi.map((l, i) => (
+                                <li key={i}>
+                                  {String(l.lokasi)} — {String(l.deskripsi)} ({String(l.teknik)})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {kompleksitas && (
+                          <div>
+                            <p className="font-medium">Estimasi Kompleksitas:</p>
+                            <Badge
+                              variant={
+                                kompleksitas === 'TINGGI'
+                                  ? 'destructive'
+                                  : kompleksitas === 'SEDANG'
+                                    ? 'default'
+                                    : 'secondary'
+                              }
+                            >
+                              {kompleksitas}
+                            </Badge>
+                          </div>
+                        )}
+                        {saran && (
+                          <div>
+                            <p className="font-medium">Saran:</p>
+                            <p className="text-muted-foreground italic">{saran}</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Step 4: Additional Services */}
             <Card>
