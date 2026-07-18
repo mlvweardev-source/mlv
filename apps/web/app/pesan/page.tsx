@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { RepeatOrderReview } from '@/components/repeat-order-review';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -80,9 +81,13 @@ export default function PesanPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutStage, setCheckoutStage] = useState('');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [repeatDraftId, setRepeatDraftId] = useState<string | null>(null);
 
   // 1. Check Auth state & Restore draft if any
   useEffect(() => {
+    const draftId = new URLSearchParams(window.location.search).get('draft');
+    if (draftId) setRepeatDraftId(draftId);
+
     apiFetch<Me>('/auth/me')
       .then((data) => setMe(data.actorType === 'CUSTOMER' ? data : null))
       .catch(() => setMe(null))
@@ -308,6 +313,10 @@ export default function PesanPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (repeatDraftId) {
+    return <RepeatOrderReview orderId={repeatDraftId} />;
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
