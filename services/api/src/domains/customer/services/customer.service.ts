@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { prisma } from '@mlv/db';
 import { ActorType } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
@@ -120,12 +121,32 @@ export class CustomerService {
       throw new NotFoundException('Pelanggan tidak ditemukan');
     }
 
+    const order = await prisma.order.findUnique({ where: { id: dto.orderId } });
+    if (!order) {
+      throw new NotFoundException('Order tidak ditemukan');
+    }
+    if (order.customerId !== id) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
+    }
+    if (order.status !== 'DIKIRIM') {
+      throw new BadRequestException(
+        `Review hanya dapat diberikan setelah order berstatus DIKIRIM (status saat ini: ${order.status})`,
+      );
+    }
+
+    const existingReview = await prisma.review.findFirst({
+      where: { customerId: id, orderId: dto.orderId },
+    });
+    if (existingReview) {
+      throw new ConflictException('Review untuk order ini sudah pernah diberikan');
+    }
+
     const review = await prisma.review.create({
       data: {
         customerId: id,
         rating: dto.rating,
         komentar: dto.komentar,
-        orderId: dto.orderId ?? null,
+        orderId: dto.orderId,
       },
     });
 

@@ -12,8 +12,12 @@ jest.mock('@mlv/db', () => ({
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    order: {
+      findUnique: jest.fn(),
+    },
     review: {
       create: jest.fn(),
+      findFirst: jest.fn(),
     },
   },
 }));
@@ -82,11 +86,15 @@ describe('CustomerService', () => {
       const mockReview = { id: 'review-1', customerId: 'customer-1', rating: 5, komentar: 'Bagus' };
 
       (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue(mockCustomer);
+      (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', status: 'DIKIRIM',
+      });
+      (prismaMock.review.findFirst as jest.Mock).mockResolvedValue(null);
       (prismaMock.review.create as jest.Mock).mockResolvedValue(mockReview);
 
       const result = await service.createReview(
         'customer-1',
-        { rating: 5, komentar: 'Bagus' },
+        { rating: 5, komentar: 'Bagus', orderId: 'order-1' },
         actor,
       );
 
@@ -96,16 +104,53 @@ describe('CustomerService', () => {
           customerId: 'customer-1',
           rating: 5,
           komentar: 'Bagus',
-          orderId: null,
+          orderId: 'order-1',
         },
       });
+    });
+
+    it('should reject review before order is DIKIRIM', async () => {
+      const actor = { sub: 'customer-1', actorType: ActorType.CUSTOMER };
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'customer-1' });
+      (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', status: 'SEWING',
+      });
+
+      await expect(
+        service.createReview(
+          'customer-1',
+          { rating: 4, komentar: 'Belum selesai', orderId: 'order-1' },
+          actor,
+        ),
+      ).rejects.toThrow('Review hanya dapat diberikan setelah order berstatus DIKIRIM');
+    });
+
+    it('should reject a second review for the same order', async () => {
+      const actor = { sub: 'customer-1', actorType: ActorType.CUSTOMER };
+      (prismaMock.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'customer-1' });
+      (prismaMock.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', status: 'DIKIRIM',
+      });
+      (prismaMock.review.findFirst as jest.Mock).mockResolvedValue({ id: 'review-1' });
+
+      await expect(
+        service.createReview(
+          'customer-1',
+          { rating: 5, komentar: 'Bagus', orderId: 'order-1' },
+          actor,
+        ),
+      ).rejects.toThrow('Review untuk order ini sudah pernah diberikan');
     });
 
     it('should throw ForbiddenException if staff tries to create customer review', async () => {
       const actor = { sub: 'staff-1', actorType: ActorType.USER, role: UserRole.OWNER };
 
       await expect(
-        service.createReview('customer-1', { rating: 5, komentar: 'Bagus' }, actor),
+        service.createReview(
+          'customer-1',
+          { rating: 5, komentar: 'Bagus', orderId: 'order-1' },
+          actor,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
   });

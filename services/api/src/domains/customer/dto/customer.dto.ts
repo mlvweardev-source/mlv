@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsInt, Min, Max, MinLength } from 'class-validator';
+import { IsUUID } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -25,7 +26,6 @@ export class CreateReviewDto {
   @IsString()
   komentar?: string;
 
-  @IsOptional()
-  @IsString()
-  orderId?: string;
+  @IsUUID()
+  orderId!: string;
 }
