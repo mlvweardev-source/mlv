@@ -201,6 +201,53 @@ export class ProductionService {
   /**
    * GET /production/tasks
    */
+  async getDesignRevisionEligibility(orderItemIds: string[]): Promise<
+    Record<
+      string,
+      {
+        allowed: boolean;
+        cuttingStatus: TaskStatus | null;
+        reason: string | null;
+      }
+    >
+  > {
+    if (orderItemIds.length === 0) return {};
+
+    const cuttingTasks = await prisma.productionTask.findMany({
+      where: {
+        orderItemId: { in: orderItemIds },
+        taskType: 'CUTTING',
+      },
+      select: { orderItemId: true, status: true },
+    });
+    const taskByItem = new Map(cuttingTasks.map((task) => [task.orderItemId, task.status]));
+
+    return Object.fromEntries(
+      orderItemIds.map((orderItemId) => {
+        const cuttingStatus = taskByItem.get(orderItemId) ?? null;
+        const allowed =
+          cuttingStatus === null || cuttingStatus === 'MENUNGGU' || cuttingStatus === 'DITERIMA';
+        return [
+          orderItemId,
+          {
+            allowed,
+            cuttingStatus,
+            reason: allowed
+              ? null
+              : `Revisi desain tidak dapat diunggah karena proses Cutting sudah dimulai (status: ${cuttingStatus}).`,
+          },
+        ];
+      }),
+    );
+  }
+
+  async assertDesignRevisionAllowed(orderItemId: string): Promise<void> {
+    const eligibility = (await this.getDesignRevisionEligibility([orderItemId]))[orderItemId];
+    if (!eligibility.allowed) {
+      throw new BadRequestException(eligibility.reason);
+    }
+  }
+
   async getTasks(query: GetTasksQueryDto): Promise<ProductionTaskResponseDto[]> {
     const where: any = {};
     if (query.orderId) {

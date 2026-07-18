@@ -16,11 +16,12 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { join, extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, renameSync, unlinkSync } from 'fs';
 import { OrderService } from '../services/order.service';
 import {
   CreateOrderDto,
   AddOrderItemDto,
+  UpdateDraftOrderItemDto,
   UpdateOrderStatusDto,
   AddOrderServiceDto,
   FindOrdersQueryDto,
@@ -170,6 +171,21 @@ export class OrderController {
   ) {
     return this.orderService.addOrderItem(id, dto, req.user);
   }
+  /**
+   * PATCH /orders/:id/items/:itemId - Edit item Draft sebelum checkout ulang.
+   */
+  @Patch(':id/items/:itemId')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  @AllowCustomer()
+  async updateDraftItem(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: UpdateDraftOrderItemDto,
+    @Req() req: { user: JwtPayload },
+  ) {
+    return this.orderService.updateDraftOrderItem(id, itemId, dto, req.user);
+  }
+
 
   /**
    * POST /orders/:id/items/:itemId/designs — Upload desain.
@@ -193,6 +209,10 @@ export class OrderController {
     @Body('catatanTeks') catatanTeks: string | undefined,
     @Req() req: { user: JwtPayload },
   ): Promise<Prisma.OrderDesignGetPayload<object>> {
+    if (!file) {
+      throw new BadRequestException('File desain wajib diunggah');
+    }
+
     // Move file to correct location based on order/item
     const uploadDir = join(process.cwd(), 'uploads', 'designs', id, itemId);
 
@@ -201,14 +221,24 @@ export class OrderController {
     }
 
     // Move file from temp location to final destination
-    const finalPath = join(uploadDir, file.originalname);
-    const { renameSync } = await import('fs');
+    const finalPath = join(uploadDir, file.filename);
     renameSync(file.path, finalPath);
 
     // Update file path to store relative URL
-    const fileUrl = `/uploads/designs/${id}/${itemId}/${file.originalname}`;
+    const fileUrl = `/uploads/designs/${id}/${itemId}/${file.filename}`;
 
-    return this.orderService.uploadDesignWithUrl(id, itemId, fileUrl, catatanTeks, req.user);
+    try {
+      return await this.orderService.uploadDesignWithUrl(
+        id,
+        itemId,
+        fileUrl,
+        catatanTeks,
+        req.user,
+      );
+    } catch (error) {
+      if (existsSync(finalPath)) unlinkSync(finalPath);
+      throw error;
+    }
   }
 
   /**

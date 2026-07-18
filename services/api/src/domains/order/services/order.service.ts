@@ -20,6 +20,7 @@ import { ReserveStockDto } from '../../inventory/dto/inventory.dto';
 import {
   CreateOrderDto,
   AddOrderItemDto,
+  UpdateDraftOrderItemDto,
   UpdateOrderStatusDto,
   AddOrderServiceDto,
   AddOrderItemResponseDto,
@@ -145,6 +146,12 @@ export class OrderService {
     const orders = await prisma.order.findMany({
       where: whereClause,
       include: {
+        items: {
+          select: {
+            productType: true,
+            sizes: { select: { qty: true } },
+          },
+        },
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -159,6 +166,10 @@ export class OrderService {
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
       _count: o._count,
+      itemSummary: (o.items ?? []).map((item) => ({
+        productType: item.productType,
+        qty: item.sizes.reduce((sum, size) => sum + size.qty, 0),
+      })),
     }));
   }
 
@@ -181,6 +192,9 @@ export class OrderService {
         timeline: {
           orderBy: { createdAt: 'asc' },
         },
+        payments: { orderBy: { createdAt: 'desc' } },
+        invoices: { orderBy: { createdAt: 'desc' } },
+        shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
 
@@ -211,7 +225,11 @@ export class OrderService {
       }));
     });
 
-    return this.mapOrderToResponse(order);
+    const revisionEligibility = await this.productionService.getDesignRevisionEligibility(
+      order.items.map((item) => item.id),
+    );
+
+    return this.mapOrderToResponse(order, revisionEligibility);
   }
 
   // ==========================================
@@ -307,6 +325,71 @@ export class OrderService {
     };
   }
 
+  /**
+   * PATCH /orders/:id/items/:itemId - Edit item pada Draft repeat order.
+   */
+  async updateDraftOrderItem(
+    orderId: string,
+    itemId: string,
+    dto: UpdateDraftOrderItemDto,
+    actor: JwtPayload,
+  ): Promise<AddOrderItemResponseDto> {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order tidak ditemukan');
+    if (order.status !== 'DRAFT') {
+      throw new BadRequestException('Item hanya bisa diedit selama order berstatus DRAFT');
+    }
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
+    }
+    if (dto.sizes.length === 0) {
+      throw new BadRequestException('Minimal satu ukuran harus memiliki kuantitas');
+    }
+
+    const existingItem = await prisma.orderItem.findFirst({ where: { id: itemId, orderId } });
+    if (!existingItem) throw new NotFoundException('Item tidak ditemukan dalam order ini');
+
+    const priceRef = await prisma.productPriceList.findUnique({
+      where: { productType: dto.productType },
+    });
+    if (!priceRef) {
+      throw new BadRequestException(
+        `Harga dasar untuk produk "${dto.productType}" belum dikonfigurasi`,
+      );
+    }
+
+    const item = await prisma.orderItem.update({
+      where: { id: itemId },
+      data: {
+        productType: dto.productType,
+        basePriceSnapshot: priceRef.hargaDasarPerPcs,
+        sizes: {
+          deleteMany: {},
+          create: dto.sizes.map((size) => ({ ukuran: size.ukuran, qty: size.qty })),
+        },
+      },
+      include: { sizes: true },
+    });
+
+    await prisma.orderTimelineEvent.create({
+      data: {
+        orderId,
+        tipeEvent: 'ITEM_DIEDIT',
+        deskripsi: `Item ${dto.productType} diperbarui sebelum checkout ulang`,
+        actorId: actor.sub,
+      },
+    });
+
+    return {
+      id: item.id,
+      orderId: item.orderId,
+      productType: item.productType,
+      basePriceSnapshot: item.basePriceSnapshot,
+      sizes: item.sizes.map((size) => ({ id: size.id, ukuran: size.ukuran, qty: size.qty })),
+      createdAt: item.createdAt,
+    };
+  }
+
   // ==========================================
   // Order Designs (Upload)
   // ==========================================
@@ -338,6 +421,8 @@ export class OrderService {
     if (!item) {
       throw new NotFoundException('Item tidak ditemukan dalam order ini');
     }
+
+    await this.productionService.assertDesignRevisionAllowed(item.id);
 
     // Validasi file (tipe & ukuran)
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -383,6 +468,8 @@ export class OrderService {
       throw new NotFoundException('Item tidak ditemukan dalam order ini');
     }
 
+    await this.productionService.assertDesignRevisionAllowed(item.id);
+
     return this.createDesignRecord(orderId, item, item.productType, fileUrl, catatanTeks, actor);
   }
 
@@ -397,13 +484,20 @@ export class OrderService {
     catatanTeks: string | undefined,
     actor: JwtPayload,
   ) {
+    const latestDesign = await prisma.orderDesign.findFirst({
+      where: { orderItemId: item.id },
+      orderBy: { versiRevisi: 'desc' },
+      select: { versiRevisi: true },
+    });
+    const versiRevisi = (latestDesign?.versiRevisi ?? 0) + 1;
+
     const design = await prisma.orderDesign.create({
       data: {
         orderItemId: item.id,
         fileUrl,
         catatanTeks: catatanTeks ?? null,
         statusKonfirmasi: 'MENUNGGU',
-        versiRevisi: 1,
+        versiRevisi,
       },
     });
 
@@ -412,7 +506,7 @@ export class OrderService {
       data: {
         orderId,
         tipeEvent: 'DESAIN_DIUPLOAD',
-        deskripsi: `Desain diupload untuk item ${productType}`,
+        deskripsi: `Desain revisi v${versiRevisi} diupload untuk item ${productType}`,
         actorId: actor.sub,
       },
     });
@@ -1227,6 +1321,7 @@ export class OrderService {
             sizes: true,
             designs: true,
             services: true,
+            materials: true,
           },
         },
       },
@@ -1241,6 +1336,18 @@ export class OrderService {
       throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
     }
 
+    const productTypes = [...new Set(originalOrder.items.map((item) => item.productType))];
+    const currentPrices = await Promise.all(
+      productTypes.map((productType) =>
+        prisma.productPriceList.findUnique({ where: { productType } }),
+      ),
+    );
+    const priceByProduct = new Map(
+      currentPrices
+        .filter((price): price is NonNullable<typeof price> => price !== null)
+        .map((price) => [price.productType, price.hargaDasarPerPcs]),
+    );
+
     // Buat order baru
     const newOrderNumber = await this.generateOrderNumber();
 
@@ -1251,16 +1358,36 @@ export class OrderService {
         status: 'DRAFT',
         deadline: null,
         items: {
-          create: originalOrder.items.map((item) => ({
-            productType: item.productType,
-            basePriceSnapshot: item.basePriceSnapshot,
-            sizes: {
-              create: item.sizes.map((s) => ({
-                ukuran: s.ukuran,
-                qty: s.qty,
-              })),
-            },
-          })),
+          create: originalOrder.items.map((item) => {
+            const latestDesign = [...item.designs].sort(
+              (a, b) => b.versiRevisi - a.versiRevisi,
+            )[0];
+            return {
+              productType: item.productType,
+              basePriceSnapshot: priceByProduct.get(item.productType) ?? item.basePriceSnapshot,
+              sizes: {
+                create: item.sizes.map((size) => ({ ukuran: size.ukuran, qty: size.qty })),
+              },
+              designs: latestDesign
+                ? {
+                    create: [{
+                      fileUrl: latestDesign.fileUrl,
+                      catatanTeks: latestDesign.catatanTeks,
+                      statusKonfirmasi: 'MENUNGGU',
+                      versiRevisi: 1,
+                    }],
+                  }
+                : undefined,
+              services: {
+                create: item.services.map((service) => ({
+                  serviceType: service.serviceType,
+                  lokasi: service.lokasi,
+                  ukuran: service.ukuran,
+                  tarif: service.tarif,
+                })),
+              },
+            };
+          }),
         },
       },
       include: {
@@ -1273,6 +1400,9 @@ export class OrderService {
           },
         },
         timeline: true,
+        payments: true,
+        invoices: true,
+        shipments: true,
       },
     });
 
@@ -1481,7 +1611,13 @@ export class OrderService {
   /**
    * Map Prisma order to response DTO.
    */
-  private mapOrderToResponse(order: any): OrderResponseDto {
+  private mapOrderToResponse(
+    order: any,
+    revisionEligibility: Record<
+      string,
+      { allowed: boolean; cuttingStatus: string | null; reason: string | null }
+    > = {},
+  ): OrderResponseDto {
     return {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -1520,6 +1656,11 @@ export class OrderService {
           ukuran: s.ukuran,
           tarif: s.tarif,
         })),
+        designRevision: revisionEligibility[item.id] ?? {
+          allowed: true,
+          cuttingStatus: null,
+          reason: null,
+        },
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       })),
@@ -1530,6 +1671,33 @@ export class OrderService {
         actorId: t.actorId,
         createdAt: t.createdAt,
       })),
+      payments: (order.payments ?? []).map((payment: any) => ({
+        id: payment.id,
+        jenis: payment.jenis,
+        metode: payment.metode,
+        jumlah: payment.jumlah,
+        status: payment.status,
+        createdAt: payment.createdAt,
+      })),
+      invoices: (order.invoices ?? []).map((invoice: any) => ({
+        id: invoice.id,
+        jenis: invoice.jenis,
+        jumlah: invoice.jumlah,
+        status: invoice.status,
+        pdfUrl: invoice.pdfUrl,
+        createdAt: invoice.createdAt,
+      })),
+      shipment: (order.shipments ?? [])[0]
+        ? {
+            id: order.shipments[0].id,
+            kurir: order.shipments[0].kurir,
+            noResi: order.shipments[0].noResi,
+            status: order.shipments[0].status,
+            shippedAt: order.shipments[0].shippedAt,
+            deliveredAt: order.shipments[0].deliveredAt,
+            updatedAt: order.shipments[0].updatedAt,
+          }
+        : null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };

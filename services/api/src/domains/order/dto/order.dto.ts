@@ -68,6 +68,16 @@ export class AddOrderItemDto {
   catatanTeks?: string;
 }
 
+export class UpdateDraftOrderItemDto {
+  @IsEnum(ProductType)
+  productType!: ProductType;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderSizeDto)
+  sizes!: OrderSizeDto[];
+}
+
 export class AddOrderItemResponseDto {
   id!: string;
   orderId!: string;
@@ -180,7 +190,40 @@ export class OrderItemResponseDto {
   designs!: OrderDesignResponseDto[];
   materials!: OrderMaterialResponseDto[];
   services!: OrderServiceResponseDto[];
+  designRevision!: {
+    allowed: boolean;
+    cuttingStatus: string | null;
+    reason: string | null;
+  };
   createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export class OrderPaymentResponseDto {
+  id!: string;
+  jenis!: string;
+  metode!: string;
+  jumlah!: number;
+  status!: string;
+  createdAt!: Date;
+}
+
+export class OrderInvoiceResponseDto {
+  id!: string;
+  jenis!: string;
+  jumlah!: number;
+  status!: string;
+  pdfUrl!: string | null;
+  createdAt!: Date;
+}
+
+export class OrderShipmentResponseDto {
+  id!: string;
+  kurir!: string;
+  noResi!: string | null;
+  status!: string;
+  shippedAt!: Date | null;
+  deliveredAt!: Date | null;
   updatedAt!: Date;
 }
 
@@ -200,6 +243,9 @@ export class OrderResponseDto {
   deadline!: Date | null;
   items!: OrderItemResponseDto[];
   timeline!: OrderTimelineEventResponseDto[];
+  payments!: OrderPaymentResponseDto[];
+  invoices!: OrderInvoiceResponseDto[];
+  shipment!: OrderShipmentResponseDto | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -215,6 +261,10 @@ export class OrderListResponseDto {
   _count?: {
     items: number;
   };
+  itemSummary!: Array<{
+    productType: string;
+    qty: number;
+  }>;
 }
 
 // ==========================================

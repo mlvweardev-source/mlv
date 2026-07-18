@@ -27,9 +27,12 @@ jest.mock('@mlv/db', () => ({
     },
     orderDesign: {
       create: jest.fn(),
+      update: jest.fn(),
+      findFirst: jest.fn(),
     },
     orderTimelineEvent: {
       create: jest.fn(),
+      findFirst: jest.fn(),
     },
     orderService: {
       create: jest.fn(),
@@ -61,6 +64,8 @@ const mockInventoryService = {
 // Mock ProductionService (Fase 9: view terbatas Tim Penjahit)
 const mockProductionService = {
   getOrderIdsForAssignee: jest.fn().mockResolvedValue([]),
+  getDesignRevisionEligibility: jest.fn().mockResolvedValue({}),
+  assertDesignRevisionAllowed: jest.fn().mockResolvedValue(undefined),
 };
 
 // Mock ActivityLogService (Fase 9.4)
@@ -507,6 +512,55 @@ describe('OrderService', () => {
   });
 
   describe('duplicateOrder', () => {
+  describe('design revision gate', () => {
+    it('should increment revision version without deleting prior designs', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', status: 'CUTTING',
+      });
+      (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({
+        id: 'item-1', orderId: 'order-1', productType: 'Kaos',
+      });
+      (prisma.orderDesign.findFirst as jest.Mock).mockResolvedValue({ versiRevisi: 2 });
+      (prisma.orderDesign.create as jest.Mock).mockResolvedValue({
+        id: 'design-3', orderItemId: 'item-1', versiRevisi: 3,
+      });
+      (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
+
+      const result = await service.uploadDesignWithUrl(
+        'order-1', 'item-1', '/uploads/designs/revision.png', 'Perbesar logo',
+        mockActorCustomer as any,
+      );
+
+      expect(mockProductionService.assertDesignRevisionAllowed).toHaveBeenCalledWith('item-1');
+      expect(prisma.orderDesign.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ orderItemId: 'item-1', versiRevisi: 3 }),
+      });
+      expect(result.versiRevisi).toBe(3);
+    });
+
+    it('should reject revision when Cutting has started', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1', customerId: 'customer-1', status: 'CUTTING',
+      });
+      (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({
+        id: 'item-1', orderId: 'order-1', productType: 'Kaos',
+      });
+      mockProductionService.assertDesignRevisionAllowed.mockRejectedValueOnce(
+        new BadRequestException(
+          'Revisi desain tidak dapat diunggah karena proses Cutting sudah dimulai',
+        ),
+      );
+
+      await expect(
+        service.uploadDesignWithUrl(
+          'order-1', 'item-1', '/uploads/designs/revision.png', undefined,
+          mockActorCustomer as any,
+        ),
+      ).rejects.toThrow('proses Cutting sudah dimulai');
+      expect(prisma.orderDesign.create).not.toHaveBeenCalled();
+    });
+  });
+
     it('should create a copy of existing order', async () => {
       const originalOrder = {
         id: 'order-1',
