@@ -387,4 +387,64 @@ describe('InventoryService (Unit)', () => {
       });
     });
   });
+
+  describe('checkAvailability', () => {
+    it('should return available true if there is enough stock for all BOM items', async () => {
+      const mockWarehouse = { id: 'wh-1', nama: 'Gudang Utama' };
+      (prisma.warehouse.findFirst as jest.Mock).mockResolvedValue(mockWarehouse);
+
+      const mockBom = [
+        { materialId: 'mat-1', qtyPerUnit: 2.0, material: { nama: 'Kain' } },
+        { materialId: 'mat-2', qtyPerUnit: 1.0, material: { nama: 'Label' } },
+      ];
+      (prisma.billOfMaterial.findMany as jest.Mock).mockResolvedValue(mockBom);
+
+      // Enough stock
+      (prisma.stockBalance.findUnique as jest.Mock).mockImplementation(({ where }) => {
+        const matId = where.materialId_warehouseId.materialId;
+        if (matId === 'mat-1') {
+          return Promise.resolve({ qtyAvailable: 100, qtyReserved: 10 }); // free: 90. needed: 2 * 10 = 20
+        }
+        if (matId === 'mat-2') {
+          return Promise.resolve({ qtyAvailable: 50, qtyReserved: 5 });  // free: 45. needed: 1 * 10 = 10
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await service.checkAvailability('Kaos', 10);
+
+      expect(result).toEqual({
+        available: true,
+        estimation: 'Bahan baku tersedia',
+      });
+    });
+
+    it('should return available false if any BOM item has insufficient stock', async () => {
+      const mockWarehouse = { id: 'wh-1', nama: 'Gudang Utama' };
+      (prisma.warehouse.findFirst as jest.Mock).mockResolvedValue(mockWarehouse);
+
+      const mockBom = [
+        { materialId: 'mat-1', qtyPerUnit: 2.0, material: { nama: 'Kain' } },
+        { materialId: 'mat-2', qtyPerUnit: 1.0, material: { nama: 'Label' } },
+      ];
+      (prisma.billOfMaterial.findMany as jest.Mock).mockResolvedValue(mockBom);
+
+      // Insufficient stock for mat-1
+      (prisma.stockBalance.findUnique as jest.Mock).mockImplementation(({ where }) => {
+        const matId = where.materialId_warehouseId.materialId;
+        if (matId === 'mat-1') {
+          return Promise.resolve({ qtyAvailable: 15, qtyReserved: 0 }); // free: 15. needed: 20 -> insufficient!
+        }
+        if (matId === 'mat-2') {
+          return Promise.resolve({ qtyAvailable: 50, qtyReserved: 5 });
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await service.checkAvailability('Kaos', 10);
+
+      expect(result.available).toBe(false);
+      expect(result.estimation).toContain('Bahan tidak mencukupi: Kain');
+    });
+  });
 });

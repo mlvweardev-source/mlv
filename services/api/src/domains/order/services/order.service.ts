@@ -247,11 +247,22 @@ export class OrderService {
     // Hitung total qty dari semua ukuran
     const totalQty = dto.sizes.reduce((sum, s) => sum + s.qty, 0);
 
+    let basePrice = dto.basePriceSnapshot;
+    if (actor.actorType === ActorType.CUSTOMER) {
+      const priceRef = await prisma.productPriceList.findUnique({
+        where: { productType: dto.productType },
+      });
+      if (!priceRef) {
+        throw new BadRequestException(`Harga dasar untuk produk "${dto.productType}" belum dikonfigurasi`);
+      }
+      basePrice = priceRef.hargaDasarPerPcs;
+    }
+
     const item = await prisma.orderItem.create({
       data: {
         orderId: order.id,
         productType: dto.productType,
-        basePriceSnapshot: dto.basePriceSnapshot,
+        basePriceSnapshot: basePrice,
         sizes: {
           create: dto.sizes.map((s) => ({
             ukuran: s.ukuran,
@@ -588,6 +599,23 @@ export class OrderService {
     try {
       // Atomic reservation dalam transaksi
       await prisma.$transaction(async (tx) => {
+        // --- Auto-fill basePriceSnapshot dari ProductPriceList (Fase 10 Bagian 2) ---
+        for (const item of order.items) {
+          if (item.basePriceSnapshot === 0) {
+            const priceRef = await tx.productPriceList.findUnique({
+              where: { productType: item.productType },
+            });
+            if (priceRef) {
+              await tx.orderItem.update({
+                where: { id: item.id },
+                data: { basePriceSnapshot: priceRef.hargaDasarPerPcs },
+              });
+              // Update local object so it updates details properly in this execution context
+              item.basePriceSnapshot = priceRef.hargaDasarPerPcs;
+            }
+          }
+        }
+
         // Hapus order_materials lama
         for (const item of order.items) {
           await tx.orderMaterial.deleteMany({
@@ -1436,6 +1464,16 @@ export class OrderService {
 
     const seq = (countToday + 1).toString().padStart(4, '0');
     return `MLV-${dateStr}-${seq}`;
+  }
+
+  /**
+   * Cek ketersediaan stok real-time (panggil InventoryService).
+   */
+  async checkAvailability(
+    productType: string,
+    qty: number,
+  ): Promise<{ available: boolean; estimation?: string }> {
+    return this.inventoryService.checkAvailability(productType, qty);
   }
 
   /**

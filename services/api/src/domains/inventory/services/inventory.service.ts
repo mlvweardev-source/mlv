@@ -808,4 +808,61 @@ export class InventoryService {
       return adjustment;
     });
   }
+
+  /**
+   * Cek ketersediaan stok real-time berdasarkan BOM dan qty pesanan.
+   * Dipanggil internal dari Order Domain (§15).
+   */
+  async checkAvailability(
+    productType: string,
+    qty: number,
+  ): Promise<{ available: boolean; estimation?: string }> {
+    const warehouse = await prisma.warehouse.findFirst();
+    if (!warehouse) {
+      return { available: false, estimation: 'Gudang default tidak ditemukan' };
+    }
+    const warehouseId = warehouse.id;
+
+    let boms;
+    try {
+      boms = await this.getBom(productType);
+    } catch (e: any) {
+      return {
+        available: false,
+        estimation: `BOM untuk tipe produk "${productType}" belum dikonfigurasi`,
+      };
+    }
+
+    const missingMaterials: string[] = [];
+
+    for (const bomItem of boms) {
+      const balance = await prisma.stockBalance.findUnique({
+        where: {
+          materialId_warehouseId: { materialId: bomItem.materialId, warehouseId },
+        },
+      });
+
+      const qtyAvailable = Number(balance?.qtyAvailable ?? 0);
+      const qtyReserved = Number(balance?.qtyReserved ?? 0);
+      const freeStock = qtyAvailable - qtyReserved;
+      const requiredStock = bomItem.qtyPerUnit * qty;
+
+      if (freeStock < requiredStock) {
+        missingMaterials.push(bomItem.material.nama);
+      }
+    }
+
+    if (missingMaterials.length > 0) {
+      return {
+        available: false,
+        estimation: `Bahan tidak mencukupi: ${missingMaterials.join(', ')}`,
+      };
+    }
+
+    return {
+      available: true,
+      estimation: 'Bahan baku tersedia',
+    };
+  }
 }
+

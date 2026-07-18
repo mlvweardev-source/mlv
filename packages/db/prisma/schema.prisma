@@ -152,6 +152,17 @@ enum OrderStatus {
   DIBATALKAN
 }
 
+
+/// Referensi harga pemicu order (master harga)
+model ProductPriceList {
+  productType      String   @id @map("product_type")
+  hargaDasarPerPcs Float    @map("harga_dasar_per_pcs")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("product_price_list")
+}
+
 /// Master pesanan
 model Order {
   id           String      @id @default(uuid())

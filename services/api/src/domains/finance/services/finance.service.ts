@@ -79,11 +79,73 @@ export class FinanceService {
       throw new NotFoundException('Order tidak ditemukan');
     }
 
+    // Check ownership for Customer role
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
+    }
+
+    // Validate order status based on payment type (DP or PELUNASAN)
+    if (dto.jenis === 'DP' && order.status !== 'MENUNGGU_PEMBAYARAN_DP') {
+      throw new BadRequestException(
+        `Pembayaran DP hanya diperbolehkan untuk order berstatus MENUNGGU_PEMBAYARAN_DP (status saat ini: ${order.status})`
+      );
+    }
+    if (dto.jenis === 'PELUNASAN' && order.status !== 'MENUNGGU_PELUNASAN') {
+      throw new BadRequestException(
+        `Pembayaran Pelunasan hanya diperbolehkan untuk order berstatus MENUNGGU_PELUNASAN (status saat ini: ${order.status})`
+      );
+    }
+
     // Get customer name — via CustomerService (DDD boundary §4.1)
     const customer = await this.customerService.getCustomerByIdInternal(order.customerId);
 
-    // Validate jumlah
-    if (dto.jumlah <= 0) {
+    // Determine amount
+    let jumlah = dto.jumlah;
+
+    if (actor.actorType === ActorType.CUSTOMER) {
+      // Fetch full order with items, sizes, services
+      const orderWithDetails = await prisma.order.findUnique({
+        where: { id: dto.orderId },
+        include: {
+          items: {
+            include: {
+              sizes: true,
+              services: true,
+            },
+          },
+        },
+      });
+
+      if (!orderWithDetails) {
+        throw new NotFoundException('Order tidak ditemukan');
+      }
+
+      const subtotal = this.calculateOrderTotal(orderWithDetails);
+      let discount = orderWithDetails.discountNominal ?? 0;
+      if (orderWithDetails.discountPersen) {
+        discount = (subtotal * orderWithDetails.discountPersen) / 100;
+      }
+      const netTotal = subtotal - discount;
+
+      if (dto.jenis === 'DP') {
+        // DP default checkout otomatis pelanggan: 50% dari total order
+        jumlah = netTotal * 0.5;
+      } else {
+        // PELUNASAN
+        const paidDp = await prisma.payment.aggregate({
+          where: { orderId: dto.orderId, jenis: 'DP', status: 'SUCCESS' },
+          _sum: { jumlah: true },
+        });
+        jumlah = netTotal - (paidDp._sum.jumlah ?? 0);
+      }
+    } else {
+      // Staff flow — jumlah is mandatory
+      if (jumlah === undefined || jumlah === null || jumlah <= 0) {
+        throw new BadRequestException('Jumlah payment harus diisi oleh staf');
+      }
+    }
+
+    if (jumlah <= 0) {
       throw new BadRequestException('Jumlah payment harus lebih dari 0');
     }
 
@@ -93,13 +155,13 @@ export class FinanceService {
         orderId: dto.orderId,
         jenis: dto.jenis,
         metode: dto.metode,
-        jumlah: dto.jumlah,
+        jumlah,
         status: 'PENDING',
       },
     });
 
     // Generate invoice untuk payment ini
-    await this.generateInvoiceForPayment(payment.id, dto.jenis, dto.jumlah, dto.orderId);
+    await this.generateInvoiceForPayment(payment.id, dto.jenis, jumlah, dto.orderId);
 
     // Jika metode Midtrans Snap, inisiasi transaksi
     if (dto.metode === 'midtrans_snap') {

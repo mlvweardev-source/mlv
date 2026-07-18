@@ -44,6 +44,9 @@ jest.mock('@mlv/db', () => ({
     material: {
       findMany: jest.fn(),
     },
+    productPriceList: {
+      findUnique: jest.fn(),
+    },
     $transaction: jest.fn(),
   },
 }));
@@ -253,6 +256,51 @@ describe('OrderService', () => {
           mockActorOwner as any,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should ignore input price and use ProductPriceList price for CUSTOMER', async () => {
+      const mockOrder = {
+        id: 'order-1',
+        status: 'DRAFT',
+        customerId: 'customer-1',
+      };
+      const mockItem = {
+        id: 'item-1',
+        orderId: 'order-1',
+        productType: 'Kaos',
+        basePriceSnapshot: 85000,
+        sizes: [{ id: 'size-1', ukuran: 'L', qty: 5 }],
+        createdAt: new Date(),
+      };
+
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+      (prisma.productPriceList.findUnique as jest.Mock).mockResolvedValue({
+        productType: 'Kaos',
+        hargaDasarPerPcs: 85000,
+      });
+      (prisma.orderItem.create as jest.Mock).mockResolvedValue(mockItem);
+
+      const result = await service.addOrderItem(
+        'order-1',
+        {
+          productType: 'Kaos' as any,
+          basePriceSnapshot: 1000, // manipulated price
+          sizes: [{ ukuran: 'L', qty: 5 }],
+        },
+        { sub: 'customer-1', actorType: ActorType.CUSTOMER } as any,
+      );
+
+      expect(prisma.productPriceList.findUnique).toHaveBeenCalledWith({
+        where: { productType: 'Kaos' },
+      });
+      expect(prisma.orderItem.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            basePriceSnapshot: 85000, // Ignores 1000, uses 85000
+          }),
+        }),
+      );
+      expect(result.basePriceSnapshot).toBe(85000);
     });
   });
 

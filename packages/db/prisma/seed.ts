@@ -89,6 +89,25 @@ async function main() {
   });
   console.log(`  ✅ Customer: ${customer2.nama} (${customer2.email})`);
 
+  // --- Product Price List (Fase 10 Bagian 2 - PLACEHOLDER DATA) ---
+  console.log('🌱 Seeding product price list (placeholder data)...');
+  const priceListData = [
+    { productType: 'Kaos', hargaDasarPerPcs: 85000 },
+    { productType: 'Kemeja', hargaDasarPerPcs: 120000 },
+    { productType: 'Hoodie', hargaDasarPerPcs: 150000 },
+    { productType: 'Topi', hargaDasarPerPcs: 45000 },
+    { productType: 'Tas', hargaDasarPerPcs: 60000 },
+  ];
+
+  for (const p of priceListData) {
+    await prisma.productPriceList.upsert({
+      where: { productType: p.productType },
+      update: { hargaDasarPerPcs: p.hargaDasarPerPcs },
+      create: { productType: p.productType, hargaDasarPerPcs: p.hargaDasarPerPcs },
+    });
+    console.log(`  ✅ Price List (PLACEHOLDER): ${p.productType} -> Rp ${p.hargaDasarPerPcs.toLocaleString()}`);
+  }
+
   // ==========================================
   // Inventory Domain Seeding (§6.4, §25.2)
   // ==========================================

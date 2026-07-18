@@ -18,6 +18,7 @@
     "demo:finance-shipping": "ts-node scripts/demo-finance-shipping.ts",
     "demo:chat-activity": "ts-node scripts/demo-chat-activity.ts",
     "demo:customer-auth": "ts-node scripts/demo-customer-auth.ts",
+    "demo:checkout": "ts-node scripts/demo-checkout.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {

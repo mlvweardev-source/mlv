@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { FinanceService } from '../services/finance.service';
 import { CreatePaymentDto } from '../dto/finance.dto';
-import { Public, Roles, GetUser } from '../../identity-access/guards/auth.guard';
+import { Public, Roles, GetUser, AllowCustomer } from '../../identity-access/guards/auth.guard';
 import { UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 
@@ -33,6 +33,7 @@ export class PaymentController {
    * POST /payments — Buat payment + inisiasi Midtrans
    */
   @Post()
+  @AllowCustomer()
   async createPayment(@Body() dto: CreatePaymentDto, @GetUser() actor: JwtPayload) {
     return this.financeService.createPayment(dto, actor);
   }

@@ -14,9 +14,10 @@ export class CreatePaymentDto {
   @IsEnum(['midtrans_snap', 'transfer', 'cash'])
   metode!: 'midtrans_snap' | 'transfer' | 'cash';
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  jumlah!: number;
+  jumlah?: number;
 }
 
 export class PaymentResponseDto {

@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { join, extname } from 'path';
@@ -112,6 +113,22 @@ export class OrderController {
   @AllowCustomer()
   async findOrders(@Query() query: FindOrdersQueryDto, @Req() req: { user: JwtPayload }) {
     return this.orderService.findOrders(req.user, query);
+  }
+
+  /**
+   * GET /orders/check-availability — Cek ketersediaan stok produk real-time.
+   */
+  @Get('check-availability')
+  @AllowCustomer()
+  async checkAvailability(
+    @Query('productType') productType: string,
+    @Query('qty') qty: string,
+  ) {
+    const qtyNum = parseInt(qty, 10);
+    if (!productType || isNaN(qtyNum) || qtyNum <= 0) {
+      throw new BadRequestException('Parameter productType dan qty harus valid');
+    }
+    return this.orderService.checkAvailability(productType, qtyNum);
   }
 
   /**
