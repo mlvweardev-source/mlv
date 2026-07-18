@@ -42,8 +42,9 @@ export class PaymentController {
    * GET /payments — Daftar payment (filter opsional ?orderId=)
    */
   @Get()
-  async findPayments(@Query('orderId') orderId?: string) {
-    return this.financeService.findPayments(orderId);
+  @AllowCustomer()
+  async findPayments(@Query('orderId') orderId: string | undefined, @GetUser() actor: JwtPayload) {
+    return this.financeService.findPayments(orderId, actor);
   }
 
   /**

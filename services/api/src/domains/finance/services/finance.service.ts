@@ -285,7 +285,14 @@ export class FinanceService {
    * ?orderId= untuk section Pembayaran di halaman Order;
    * tanpa filter untuk overview /finance.
    */
-  async findPayments(orderId?: string): Promise<any[]> {
+  async findPayments(orderId?: string, actor?: JwtPayload): Promise<any[]> {
+    if (actor?.actorType === ActorType.CUSTOMER) {
+      if (!orderId) {
+        throw new BadRequestException('Pelanggan wajib menyertakan orderId');
+      }
+      await this.assertCustomerOwnsOrder(orderId, actor);
+    }
+
     return prisma.payment.findMany({
       where: orderId ? { orderId } : undefined,
       include: {
@@ -338,7 +345,14 @@ export class FinanceService {
    * ?orderId= untuk section Pembayaran di halaman Order;
    * tanpa filter untuk overview /finance.
    */
-  async findInvoices(orderId?: string): Promise<any[]> {
+  async findInvoices(orderId?: string, actor?: JwtPayload): Promise<any[]> {
+    if (actor?.actorType === ActorType.CUSTOMER) {
+      if (!orderId) {
+        throw new BadRequestException('Pelanggan wajib menyertakan orderId');
+      }
+      await this.assertCustomerOwnsOrder(orderId, actor);
+    }
+
     return prisma.invoice.findMany({
       where: orderId ? { orderId } : undefined,
       include: {
@@ -351,7 +365,7 @@ export class FinanceService {
   /**
    * GET /invoices/:id
    */
-  async getInvoiceById(invoiceId: string): Promise<any> {
+  async getInvoiceById(invoiceId: string, actor?: JwtPayload): Promise<any> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {
@@ -372,6 +386,10 @@ export class FinanceService {
       throw new NotFoundException('Invoice tidak ditemukan');
     }
 
+    if (actor?.actorType === ActorType.CUSTOMER && actor.sub !== invoice.order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke invoice ini');
+    }
+
     return this.formatInvoiceDetail(invoice);
   }
 
@@ -380,7 +398,10 @@ export class FinanceService {
    * File disimpan ke uploads/invoices/ (pola upload desain Fase 3),
    * di-serve via static /uploads — siap di-swap ke S3-compatible nanti.
    */
-  async getInvoicePdf(invoiceId: string): Promise<{ pdfUrl: string }> {
+  async getInvoicePdf(
+    invoiceId: string,
+    actor?: JwtPayload,
+  ): Promise<{ pdfUrl: string }> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {
@@ -399,6 +420,10 @@ export class FinanceService {
 
     if (!invoice) {
       throw new NotFoundException('Invoice tidak ditemukan');
+    }
+
+    if (actor?.actorType === ActorType.CUSTOMER && actor.sub !== invoice.order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke invoice ini');
     }
 
     // Nama/kontak pelanggan via CustomerService (DDD boundary §4.1)
@@ -801,6 +826,16 @@ export class FinanceService {
   // ==========================================
   // Helper Methods
   // ==========================================
+
+  private async assertCustomerOwnsOrder(orderId: string, actor: JwtPayload): Promise<void> {
+    const order = await this.orderService.getOrderByIdInternal(orderId);
+    if (!order) {
+      throw new NotFoundException('Order tidak ditemukan');
+    }
+    if (actor.actorType === ActorType.CUSTOMER && actor.sub !== order.customerId) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke order ini');
+    }
+  }
 
   private async initMidtransSnap(
     payment: any,

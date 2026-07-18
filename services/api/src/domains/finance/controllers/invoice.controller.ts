@@ -1,7 +1,8 @@
 import { Controller, Get, Param, Post, Query, ParseUUIDPipe } from '@nestjs/common';
 import { FinanceService } from '../services/finance.service';
-import { Roles } from '../../identity-access/guards/auth.guard';
+import { AllowCustomer, GetUser, Roles } from '../../identity-access/guards/auth.guard';
 import { UserRole } from '@mlv/auth';
+import type { JwtPayload } from '@mlv/auth';
 
 /**
  * Invoice endpoints — §8.
@@ -17,24 +18,27 @@ export class InvoiceController {
    * GET /invoices — Daftar invoice (filter opsional ?orderId=)
    */
   @Get()
-  async findInvoices(@Query('orderId') orderId?: string) {
-    return this.financeService.findInvoices(orderId);
+  @AllowCustomer()
+  async findInvoices(@Query('orderId') orderId: string | undefined, @GetUser() actor: JwtPayload) {
+    return this.financeService.findInvoices(orderId, actor);
   }
 
   /**
    * GET /invoices/:id
    */
   @Get(':id')
-  async getInvoice(@Param('id', ParseUUIDPipe) id: string) {
-    return this.financeService.getInvoiceById(id);
+  @AllowCustomer()
+  async getInvoice(@Param('id', ParseUUIDPipe) id: string, @GetUser() actor: JwtPayload) {
+    return this.financeService.getInvoiceById(id, actor);
   }
 
   /**
    * GET /invoices/:id/pdf
    */
   @Get(':id/pdf')
-  async getInvoicePdf(@Param('id', ParseUUIDPipe) id: string) {
-    return this.financeService.getInvoicePdf(id);
+  @AllowCustomer()
+  async getInvoicePdf(@Param('id', ParseUUIDPipe) id: string, @GetUser() actor: JwtPayload) {
+    return this.financeService.getInvoicePdf(id, actor);
   }
 
   /**
