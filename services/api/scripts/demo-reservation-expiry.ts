@@ -110,7 +110,11 @@ async function main() {
     select: { orderId: true },
     distinct: ['orderId'],
   });
-  check('Found expired reservations', expiredReservations.length > 0, `count=${expiredReservations.length}`);
+  check(
+    'Found expired reservations',
+    expiredReservations.length > 0,
+    `count=${expiredReservations.length}`,
+  );
 
   for (const { orderId } of expiredReservations) {
     const targetOrder = await prisma.order.findUnique({ where: { id: orderId } });
@@ -129,7 +133,11 @@ async function main() {
         data: { status: 'RELEASED' },
       });
     }
-    check(`Released ${reservations.length} reservations`, true, `for order ${targetOrder.orderNumber}`);
+    check(
+      `Released ${reservations.length} reservations`,
+      true,
+      `for order ${targetOrder.orderNumber}`,
+    );
 
     // Cancel order
     await prisma.order.update({
