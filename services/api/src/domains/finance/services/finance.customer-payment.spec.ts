@@ -122,10 +122,7 @@ describe('FinanceService — Customer Payment RBAC & Calculation', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
 
       await expect(
-        service.createPayment(
-          { orderId: 'order-1', jenis: 'DP', metode: 'transfer' },
-          CUSTOMER_B,
-        ),
+        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'transfer' }, CUSTOMER_B),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -139,10 +136,7 @@ describe('FinanceService — Customer Payment RBAC & Calculation', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
 
       await expect(
-        service.createPayment(
-          { orderId: 'order-1', jenis: 'DP', metode: 'transfer' },
-          CUSTOMER_A,
-        ),
+        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'transfer' }, CUSTOMER_A),
       ).rejects.toThrow(BadRequestException);
     });
 

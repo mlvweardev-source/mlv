@@ -105,7 +105,9 @@ async function main() {
       update: { hargaDasarPerPcs: p.hargaDasarPerPcs },
       create: { productType: p.productType, hargaDasarPerPcs: p.hargaDasarPerPcs },
     });
-    console.log(`  ✅ Price List (PLACEHOLDER): ${p.productType} -> Rp ${p.hargaDasarPerPcs.toLocaleString()}`);
+    console.log(
+      `  ✅ Price List (PLACEHOLDER): ${p.productType} -> Rp ${p.hargaDasarPerPcs.toLocaleString()}`,
+    );
   }
 
   // ==========================================

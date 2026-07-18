@@ -253,7 +253,9 @@ export class OrderService {
         where: { productType: dto.productType },
       });
       if (!priceRef) {
-        throw new BadRequestException(`Harga dasar untuk produk "${dto.productType}" belum dikonfigurasi`);
+        throw new BadRequestException(
+          `Harga dasar untuk produk "${dto.productType}" belum dikonfigurasi`,
+        );
       }
       basePrice = priceRef.hargaDasarPerPcs;
     }

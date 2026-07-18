@@ -87,12 +87,12 @@ export class FinanceService {
     // Validate order status based on payment type (DP or PELUNASAN)
     if (dto.jenis === 'DP' && order.status !== 'MENUNGGU_PEMBAYARAN_DP') {
       throw new BadRequestException(
-        `Pembayaran DP hanya diperbolehkan untuk order berstatus MENUNGGU_PEMBAYARAN_DP (status saat ini: ${order.status})`
+        `Pembayaran DP hanya diperbolehkan untuk order berstatus MENUNGGU_PEMBAYARAN_DP (status saat ini: ${order.status})`,
       );
     }
     if (dto.jenis === 'PELUNASAN' && order.status !== 'MENUNGGU_PELUNASAN') {
       throw new BadRequestException(
-        `Pembayaran Pelunasan hanya diperbolehkan untuk order berstatus MENUNGGU_PELUNASAN (status saat ini: ${order.status})`
+        `Pembayaran Pelunasan hanya diperbolehkan untuk order berstatus MENUNGGU_PELUNASAN (status saat ini: ${order.status})`,
       );
     }
 

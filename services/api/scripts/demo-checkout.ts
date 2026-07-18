@@ -14,6 +14,7 @@ import { prisma } from '@mlv/db';
 import { ActorType } from '@mlv/auth';
 import { AuthService } from '../src/domains/identity-access/services/auth.service';
 import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 
 const DEMO_PORT = 3993;
 const BASE = `http://localhost:${DEMO_PORT}`;
@@ -56,22 +57,30 @@ async function main() {
 
   // 1. Setup/seed data dasar
   line('1. MENYIAPKAN DATA SEED UNTUK DEMO CHECKOUT');
-  
+
   // Clean up previous runs
-  await prisma.orderMaterial.deleteMany({ where: { orderItem: { order: { customer: { email: 'budi-demo@mlv.dev' } } } } });
-  
+  await prisma.orderMaterial.deleteMany({
+    where: { orderItem: { order: { customer: { email: 'budi-demo@mlv.dev' } } } },
+  });
+
   const budiOrders = await prisma.order.findMany({
     where: { customer: { email: 'budi-demo@mlv.dev' } },
     select: { id: true },
   });
   const budiOrderIds = budiOrders.map((o) => o.id);
-  
+
   await prisma.stockReservation.deleteMany({
     where: { orderId: { in: budiOrderIds } },
   });
-  await prisma.invoice.deleteMany({ where: { order: { customer: { email: 'budi-demo@mlv.dev' } } } });
-  await prisma.payment.deleteMany({ where: { order: { customer: { email: 'budi-demo@mlv.dev' } } } });
-  await prisma.orderItem.deleteMany({ where: { order: { customer: { email: 'budi-demo@mlv.dev' } } } });
+  await prisma.invoice.deleteMany({
+    where: { order: { customer: { email: 'budi-demo@mlv.dev' } } },
+  });
+  await prisma.payment.deleteMany({
+    where: { order: { customer: { email: 'budi-demo@mlv.dev' } } },
+  });
+  await prisma.orderItem.deleteMany({
+    where: { order: { customer: { email: 'budi-demo@mlv.dev' } } },
+  });
   await prisma.order.deleteMany({ where: { customer: { email: 'budi-demo@mlv.dev' } } });
   await prisma.customer.deleteMany({
     where: {
@@ -129,20 +138,32 @@ async function main() {
   });
 
   // Setup Warehouse & Stock
-  const warehouse = await prisma.warehouse.findFirst() || await prisma.warehouse.create({
-    data: { nama: 'Gudang Utama', lokasi: 'Bandung' },
-  });
+  const warehouse =
+    (await prisma.warehouse.findFirst()) ||
+    (await prisma.warehouse.create({
+      data: { nama: 'Gudang Utama', lokasi: 'Bandung' },
+    }));
 
   await prisma.stockBalance.upsert({
     where: { materialId_warehouseId: { materialId: materialKain.id, warehouseId: warehouse.id } },
     update: { qtyAvailable: 100, qtyReserved: 0 },
-    create: { materialId: materialKain.id, warehouseId: warehouse.id, qtyAvailable: 100, qtyReserved: 0 },
+    create: {
+      materialId: materialKain.id,
+      warehouseId: warehouse.id,
+      qtyAvailable: 100,
+      qtyReserved: 0,
+    },
   });
 
   await prisma.stockBalance.upsert({
     where: { materialId_warehouseId: { materialId: materialLabel.id, warehouseId: warehouse.id } },
     update: { qtyAvailable: 50, qtyReserved: 0 },
-    create: { materialId: materialLabel.id, warehouseId: warehouse.id, qtyAvailable: 50, qtyReserved: 0 },
+    create: {
+      materialId: materialLabel.id,
+      warehouseId: warehouse.id,
+      qtyAvailable: 50,
+      qtyReserved: 0,
+    },
   });
 
   console.log('Seed data setup berhasil!');
@@ -204,7 +225,7 @@ async function main() {
   check(
     'Server mengabaikan manipulasi harga client dan mengambil dari ProductPriceList',
     dbItem?.basePriceSnapshot === 85000,
-    `db_price=${dbItem?.basePriceSnapshot} (diabaikan: 1000)`
+    `db_price=${dbItem?.basePriceSnapshot} (diabaikan: 1000)`,
   );
 
   // 5. Test Status Gate: Buat Payment DP di status DRAFT
@@ -223,7 +244,7 @@ async function main() {
   check(
     'Pesan error sesuai status gate',
     failPayBody.message.includes('MENUNGGU_PEMBAYARAN_DP'),
-    failPayBody.message
+    failPayBody.message,
   );
 
   // 6. Checkout (DRAFT -> MENUNGGU_PEMBAYARAN_DP)
@@ -236,7 +257,7 @@ async function main() {
     }),
   });
   check('Checkout 200 OK', checkoutRes.ok);
-  
+
   // Verifikasi stock balance ter-reserve di DB
   const kainBal = await prisma.stockBalance.findUnique({
     where: { materialId_warehouseId: { materialId: materialKain.id, warehouseId: warehouse.id } },
@@ -244,7 +265,7 @@ async function main() {
   check(
     'Kain ter-reserve 20m (10 pcs Kaos * 2m/Kaos)',
     kainBal?.qtyReserved === 20,
-    `reserved=${kainBal?.qtyReserved}`
+    `reserved=${kainBal?.qtyReserved}`,
   );
 
   // 7. Test Ownership Gate: Customer B membayar order Customer A
@@ -277,7 +298,7 @@ async function main() {
   check(
     'Jumlah DP dihitung otomatis 50% oleh backend',
     payment.payment.jumlah === 425000,
-    `jumlah_dp=${payment.payment.jumlah}`
+    `jumlah_dp=${payment.payment.jumlah}`,
   );
   check('Halaman redirect Midtrans ter-generate', !!payment.midtransRedirectUrl);
 
@@ -297,16 +318,16 @@ async function main() {
   check(
     'Pesan error sesuai status gate',
     pelunasanFailBody.message.includes('MENUNGGU_PELUNASAN'),
-    pelunasanFailBody.message
+    pelunasanFailBody.message,
   );
 
   // 10. Simulasi Webhook Sukses Midtrans (DP Lunas -> ANTREAN)
   line('10. POST /payments/webhook/midtrans — SIMULASI WEBHOOK MIDTRANS SUKSES');
   const paymentId = payment.payment.id;
-  const serverKey = app.get(require('@nestjs/config').ConfigService).get('MIDTRANS_SERVER_KEY') ?? 'mock_server_key';
+  const serverKey = app.get(ConfigService).get('MIDTRANS_SERVER_KEY') ?? 'mock_server_key';
   const grossAmount = '425000.00';
   const midtransOrderId = `payment_${paymentId}`;
-  
+
   // Signature: SHA512(order_id + status_code + gross_amount + serverKey)
   const signatureString = `${midtransOrderId}200${grossAmount}${serverKey}`;
   const signatureKey = crypto.createHash('sha512').update(signatureString).digest('hex');
@@ -330,7 +351,11 @@ async function main() {
   // Poll status order sampai ter-update ke ANTREAN oleh worker/event bus
   console.log('  … menunggu status order beralih ke ANTREAN (via event bus) …');
   const statusResult = await pollOrderStatus(orderId, 'ANTREAN');
-  check('Status order terbaru beralih ke ANTREAN', statusResult === 'ANTREAN', `status=${statusResult}`);
+  check(
+    'Status order terbaru beralih ke ANTREAN',
+    statusResult === 'ANTREAN',
+    `status=${statusResult}`,
+  );
 
   // Clean up and shutdown
   await app.close();

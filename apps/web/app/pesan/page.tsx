@@ -4,10 +4,26 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, AlertTriangle, AlertCircle, ShoppingCart, Loader2, Upload, FileText, Sparkles } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  ShoppingCart,
+  Loader2,
+  Upload,
+  FileText,
+  Sparkles,
+} from 'lucide-react';
 
 interface Me {
   id: string;
@@ -27,7 +43,7 @@ const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
 export default function PesanPage() {
   const router = useRouter();
-  
+
   // Auth state
   const [me, setMe] = useState<Me | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -43,7 +59,7 @@ export default function PesanPage() {
   });
   const [catatanTeks, setCatatanTeks] = useState('');
   const [designFile, setDesignFile] = useState<File | null>(null);
-  
+
   // Services
   const [useSablon, setUseSablon] = useState(false);
   const [sablonLokasi, setSablonLokasi] = useState('Dada Depan');
@@ -54,7 +70,10 @@ export default function PesanPage() {
   const [confirmed, setConfirmed] = useState(false);
 
   // Real-time stock state
-  const [stockStatus, setStockStatus] = useState<{ available: boolean; estimation?: string } | null>(null);
+  const [stockStatus, setStockStatus] = useState<{
+    available: boolean;
+    estimation?: string;
+  } | null>(null);
   const [checkingStock, setCheckingStock] = useState(false);
 
   // Checkout loading stages
@@ -111,7 +130,7 @@ export default function PesanPage() {
     const timer = setTimeout(() => {
       setCheckingStock(true);
       apiFetch<{ available: boolean; estimation?: string }>(
-        `/orders/check-availability?productType=${encodeURIComponent(productType)}&qty=${totalQty}`
+        `/orders/check-availability?productType=${encodeURIComponent(productType)}&qty=${totalQty}`,
       )
         .then((res) => {
           setStockStatus(res);
@@ -277,11 +296,12 @@ export default function PesanPage() {
       setCheckoutStage('Mengalihkan ke Midtrans...');
       if (paymentResult.midtransRedirectUrl) {
         // Before redirect, send user to our waiting page which will redirect them or poll
-        router.push(`/pesan/bayar/${orderId}?snap_url=${encodeURIComponent(paymentResult.midtransRedirectUrl)}`);
+        router.push(
+          `/pesan/bayar/${orderId}?snap_url=${encodeURIComponent(paymentResult.midtransRedirectUrl)}`,
+        );
       } else {
         throw new Error('Gagal mendapatkan tautan pembayaran Midtrans');
       }
-
     } catch (error: any) {
       console.error(error);
       setCheckoutError(error.message || 'Terjadi kesalahan saat memproses checkout.');
@@ -301,7 +321,10 @@ export default function PesanPage() {
           </p>
         </div>
         {me && (
-          <Badge variant="secondary" className="px-3 py-1.5 self-start md:self-center text-sm font-medium">
+          <Badge
+            variant="secondary"
+            className="px-3 py-1.5 self-start md:self-center text-sm font-medium"
+          >
             Sesi Aktif: {me.nama}
           </Badge>
         )}
@@ -330,8 +353,12 @@ export default function PesanPage() {
                 <CardHeader className="py-4 flex flex-row items-center gap-3">
                   <AlertCircle className="h-6 w-6 text-destructive flex-shrink-0" />
                   <div>
-                    <CardTitle className="text-base text-destructive font-bold">Checkout Gagal</CardTitle>
-                    <CardDescription className="text-destructive/80 mt-1">{checkoutError}</CardDescription>
+                    <CardTitle className="text-base text-destructive font-bold">
+                      Checkout Gagal
+                    </CardTitle>
+                    <CardDescription className="text-destructive/80 mt-1">
+                      {checkoutError}
+                    </CardDescription>
                   </div>
                 </CardHeader>
               </Card>
@@ -341,7 +368,9 @@ export default function PesanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">1</span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
+                    1
+                  </span>
                   Pilih Produk
                 </CardTitle>
                 <CardDescription>Pilih jenis pakaian yang ingin Anda pesan.</CardDescription>
@@ -373,7 +402,9 @@ export default function PesanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">2</span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
+                    2
+                  </span>
                   Kuantitas Per Ukuran
                 </CardTitle>
                 <CardDescription>Tentukan jumlah pesanan per ukuran pakaian.</CardDescription>
@@ -382,7 +413,9 @@ export default function PesanPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {AVAILABLE_SIZES.map((size) => (
                     <div key={size} className="space-y-2">
-                      <label className="text-sm font-medium block text-center bg-muted py-1 rounded-md">Ukuran {size}</label>
+                      <label className="text-sm font-medium block text-center bg-muted py-1 rounded-md">
+                        Ukuran {size}
+                      </label>
                       <Input
                         type="number"
                         min="0"
@@ -401,15 +434,21 @@ export default function PesanPage() {
                     {checkingStock ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Mengecek ketersediaan bahan baku...</span>
+                        <span className="text-sm text-muted-foreground">
+                          Mengecek ketersediaan bahan baku...
+                        </span>
                       </>
                     ) : stockStatus ? (
                       stockStatus.available ? (
                         <>
                           <CheckCircle2 className="h-6 w-6 text-emerald-500 flex-shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-emerald-600">Bahan Baku Tersedia</p>
-                            <p className="text-xs text-muted-foreground">{stockStatus.estimation || 'Siap masuk antrean produksi.'}</p>
+                            <p className="text-sm font-bold text-emerald-600">
+                              Bahan Baku Tersedia
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {stockStatus.estimation || 'Siap masuk antrean produksi.'}
+                            </p>
                           </div>
                         </>
                       ) : (
@@ -417,7 +456,9 @@ export default function PesanPage() {
                           <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0" />
                           <div>
                             <p className="text-sm font-bold text-amber-700">Stok Tidak Mencukupi</p>
-                            <p className="text-xs text-amber-800">{stockStatus.estimation || 'Beberapa bahan untuk produk ini kurang.'}</p>
+                            <p className="text-xs text-amber-800">
+                              {stockStatus.estimation || 'Beberapa bahan untuk produk ini kurang.'}
+                            </p>
                           </div>
                         </>
                       )
@@ -431,14 +472,20 @@ export default function PesanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">3</span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
+                    3
+                  </span>
                   Desain & Catatan
                 </CardTitle>
-                <CardDescription>Upload sketsa desain dan berikan catatan detail spesifikasi.</CardDescription>
+                <CardDescription>
+                  Upload sketsa desain dan berikan catatan detail spesifikasi.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Unggah File Desain (JPG, PNG, PDF - Max 10MB)</label>
+                  <label className="text-sm font-medium">
+                    Unggah File Desain (JPG, PNG, PDF - Max 10MB)
+                  </label>
                   <div className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center hover:bg-muted/50 transition-colors relative">
                     <input
                       type="file"
@@ -450,13 +497,19 @@ export default function PesanPage() {
                       <div className="text-center space-y-2">
                         <FileText className="h-10 w-10 text-primary mx-auto" />
                         <p className="text-sm font-semibold text-foreground">{designFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(designFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(designFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
                       </div>
                     ) : (
                       <div className="text-center space-y-2">
                         <Upload className="h-10 w-10 text-muted-foreground mx-auto" />
-                        <p className="text-sm text-foreground font-medium">Klik atau tarik file ke sini untuk mengunggah</p>
-                        <p className="text-xs text-muted-foreground">Format yang didukung: JPEG, PNG, WebP, PDF</p>
+                        <p className="text-sm text-foreground font-medium">
+                          Klik atau tarik file ke sini untuk mengunggah
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Format yang didukung: JPEG, PNG, WebP, PDF
+                        </p>
                       </div>
                     )}
                   </div>
@@ -479,14 +532,20 @@ export default function PesanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">4</span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
+                    4
+                  </span>
                   Layanan Tambahan (Opsional)
                 </CardTitle>
-                <CardDescription>Tambahkan layanan sablon atau bordir sesuai kebutuhan Anda.</CardDescription>
+                <CardDescription>
+                  Tambahkan layanan sablon atau bordir sesuai kebutuhan Anda.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Sablon Option */}
-                <div className={`p-4 rounded-xl border transition-all ${useSablon ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <div
+                  className={`p-4 rounded-xl border transition-all ${useSablon ? 'border-primary bg-primary/5' : 'border-border'}`}
+                >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <input
@@ -497,7 +556,9 @@ export default function PesanPage() {
                         className="mt-1 accent-primary h-4.5 w-4.5"
                       />
                       <div>
-                        <label htmlFor="sablon" className="text-sm font-bold block cursor-pointer">Layanan Sablon</label>
+                        <label htmlFor="sablon" className="text-sm font-bold block cursor-pointer">
+                          Layanan Sablon
+                        </label>
                         <span className="text-xs text-muted-foreground">+Rp 15.000 / pcs</span>
                       </div>
                     </div>
@@ -505,7 +566,9 @@ export default function PesanPage() {
                   {useSablon && (
                     <div className="mt-4 pt-4 border-t border-dashed border-border/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold text-muted-foreground block">Lokasi Sablon</label>
+                        <label className="text-xs font-semibold text-muted-foreground block">
+                          Lokasi Sablon
+                        </label>
                         <select
                           value={sablonLokasi}
                           onChange={(e) => setSablonLokasi(e.target.value)}
@@ -522,7 +585,9 @@ export default function PesanPage() {
                 </div>
 
                 {/* Bordir Option */}
-                <div className={`p-4 rounded-xl border transition-all ${useBordir ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <div
+                  className={`p-4 rounded-xl border transition-all ${useBordir ? 'border-primary bg-primary/5' : 'border-border'}`}
+                >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <input
@@ -533,7 +598,9 @@ export default function PesanPage() {
                         className="mt-1 accent-primary h-4.5 w-4.5"
                       />
                       <div>
-                        <label htmlFor="bordir" className="text-sm font-bold block cursor-pointer">Layanan Bordir</label>
+                        <label htmlFor="bordir" className="text-sm font-bold block cursor-pointer">
+                          Layanan Bordir
+                        </label>
                         <span className="text-xs text-muted-foreground">+Rp 20.000 / pcs</span>
                       </div>
                     </div>
@@ -541,7 +608,9 @@ export default function PesanPage() {
                   {useBordir && (
                     <div className="mt-4 pt-4 border-t border-dashed border-border/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold text-muted-foreground block">Lokasi Bordir</label>
+                        <label className="text-xs font-semibold text-muted-foreground block">
+                          Lokasi Bordir
+                        </label>
                         <select
                           value={bordirLokasi}
                           onChange={(e) => setBordirLokasi(e.target.value)}
@@ -571,23 +640,31 @@ export default function PesanPage() {
               </CardHeader>
               <CardContent className="py-6 space-y-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{productType} ({totalQty} pcs)</span>
+                  <span className="text-muted-foreground">
+                    {productType} ({totalQty} pcs)
+                  </span>
                   <span className="font-semibold">Rp {subtotal.toLocaleString('id-ID')}</span>
                 </div>
 
                 {(useSablon || useBordir) && (
                   <div className="space-y-2">
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Layanan Tambahan</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Layanan Tambahan
+                    </p>
                     {useSablon && (
                       <div className="flex justify-between text-sm pl-2 border-l border-border">
                         <span className="text-muted-foreground">Sablon ({sablonLokasi})</span>
-                        <span className="font-semibold">Rp {(totalQty * 15000).toLocaleString('id-ID')}</span>
+                        <span className="font-semibold">
+                          Rp {(totalQty * 15000).toLocaleString('id-ID')}
+                        </span>
                       </div>
                     )}
                     {useBordir && (
                       <div className="flex justify-between text-sm pl-2 border-l border-border">
                         <span className="text-muted-foreground">Bordir ({bordirLokasi})</span>
-                        <span className="font-semibold">Rp {(totalQty * 20000).toLocaleString('id-ID')}</span>
+                        <span className="font-semibold">
+                          Rp {(totalQty * 20000).toLocaleString('id-ID')}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -604,14 +681,17 @@ export default function PesanPage() {
                     <span>Rp {dpPrice.toLocaleString('id-ID')}</span>
                   </div>
                   <p className="text-[10px] text-amber-700/80 leading-normal">
-                    Pembayaran DP 50% diwajibkan untuk men-trigger reservasi stok dan memulai produksi.
+                    Pembayaran DP 50% diwajibkan untuk men-trigger reservasi stok dan memulai
+                    produksi.
                   </p>
                 </div>
 
                 {/* Design Manual Confirmation Checkbox */}
                 {totalQty > 0 && (
                   <div className="border-t pt-4 space-y-3">
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Konfirmasi Desain</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      Konfirmasi Desain
+                    </p>
                     <div className="flex items-start gap-2.5">
                       <input
                         type="checkbox"
@@ -620,8 +700,12 @@ export default function PesanPage() {
                         onChange={(e) => setConfirmed(e.target.checked)}
                         className="mt-0.5 accent-primary h-4 w-4"
                       />
-                      <label htmlFor="confirm-design" className="text-xs text-muted-foreground leading-normal cursor-pointer">
-                        Saya mengkonfirmasi bahwa sketsa desain, kuantitas ukuran, dan jenis produk di atas sudah sesuai.
+                      <label
+                        htmlFor="confirm-design"
+                        className="text-xs text-muted-foreground leading-normal cursor-pointer"
+                      >
+                        Saya mengkonfirmasi bahwa sketsa desain, kuantitas ukuran, dan jenis produk
+                        di atas sudah sesuai.
                       </label>
                     </div>
                   </div>

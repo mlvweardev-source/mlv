@@ -406,7 +406,7 @@ describe('InventoryService (Unit)', () => {
           return Promise.resolve({ qtyAvailable: 100, qtyReserved: 10 }); // free: 90. needed: 2 * 10 = 20
         }
         if (matId === 'mat-2') {
-          return Promise.resolve({ qtyAvailable: 50, qtyReserved: 5 });  // free: 45. needed: 1 * 10 = 10
+          return Promise.resolve({ qtyAvailable: 50, qtyReserved: 5 }); // free: 45. needed: 1 * 10 = 10
         }
         return Promise.resolve(null);
       });

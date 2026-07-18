@@ -120,10 +120,7 @@ export class OrderController {
    */
   @Get('check-availability')
   @AllowCustomer()
-  async checkAvailability(
-    @Query('productType') productType: string,
-    @Query('qty') qty: string,
-  ) {
+  async checkAvailability(@Query('productType') productType: string, @Query('qty') qty: string) {
     const qtyNum = parseInt(qty, 10);
     if (!productType || isNaN(qtyNum) || qtyNum <= 0) {
       throw new BadRequestException('Parameter productType dan qty harus valid');

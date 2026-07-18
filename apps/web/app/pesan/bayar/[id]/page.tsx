@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle2, AlertCircle, ExternalLink, ArrowLeft, Home } from 'lucide-react';
 
@@ -19,7 +26,7 @@ export default function BayarPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const orderId = params.id as string;
   const snapUrl = searchParams.get('snap_url');
 
@@ -32,7 +39,7 @@ export default function BayarPage() {
     if (!orderId) return;
 
     let isMounted = true;
-    let pollInterval: NodeJS.Timeout;
+    let pollInterval: any = null;
 
     const fetchOrder = async () => {
       try {
@@ -56,7 +63,7 @@ export default function BayarPage() {
     };
 
     fetchOrder();
-    
+
     // Poll every 3 seconds
     pollInterval = setInterval(fetchOrder, 3000);
 
@@ -74,20 +81,29 @@ export default function BayarPage() {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'DRAFT': return 'secondary';
-      case 'MENUNGGU_PEMBAYARAN_DP': return 'destructive';
-      case 'ANTREAN': return 'default';
-      default: return 'outline';
+      case 'DRAFT':
+        return 'secondary';
+      case 'MENUNGGU_PEMBAYARAN_DP':
+        return 'destructive';
+      case 'ANTREAN':
+        return 'default';
+      default:
+        return 'outline';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'DRAFT': return 'Draf';
-      case 'MENUNGGU_PEMBAYARAN_DP': return 'Menunggu Pembayaran DP';
-      case 'ANTREAN': return 'Dalam Antrean Produksi';
-      case 'DIBATALKAN': return 'Dibatalkan';
-      default: return status;
+      case 'DRAFT':
+        return 'Draf';
+      case 'MENUNGGU_PEMBAYARAN_DP':
+        return 'Menunggu Pembayaran DP';
+      case 'ANTREAN':
+        return 'Dalam Antrean Produksi';
+      case 'DIBATALKAN':
+        return 'Dibatalkan';
+      default:
+        return status;
     }
   };
 
@@ -111,7 +127,9 @@ export default function BayarPage() {
           <CardHeader>
             <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
             <CardTitle className="text-lg mt-4">Kesalahan Terjadi</CardTitle>
-            <CardDescription className="text-sm mt-2">{error || 'Pesanan tidak ditemukan.'}</CardDescription>
+            <CardDescription className="text-sm mt-2">
+              {error || 'Pesanan tidak ditemukan.'}
+            </CardDescription>
           </CardHeader>
           <CardFooter className="justify-center">
             <Button onClick={() => router.push('/pesan')} variant="outline">
@@ -148,16 +166,19 @@ export default function BayarPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tanggal:</span>
-                <span className="font-medium">{new Date(order.createdAt).toLocaleDateString('id-ID', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric'
-                })}</span>
+                <span className="font-medium">
+                  {new Date(order.createdAt).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </span>
               </div>
             </div>
 
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 leading-normal">
-              Sistem sedang memantau pembayaran Anda secara real-time. Halaman ini akan otomatis berganti setelah pembayaran berhasil.
+              Sistem sedang memantau pembayaran Anda secara real-time. Halaman ini akan otomatis
+              berganti setelah pembayaran berhasil.
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-2 rounded-b-xl border-t bg-muted/10 py-4">
@@ -175,7 +196,9 @@ export default function BayarPage() {
         <Card className="w-full shadow-lg border-emerald-500/20">
           <CardHeader className="text-center bg-emerald-50/50 rounded-t-xl py-6">
             <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto mb-4 animate-bounce" />
-            <CardTitle className="text-2xl font-extrabold text-emerald-800">Pembayaran Sukses!</CardTitle>
+            <CardTitle className="text-2xl font-extrabold text-emerald-800">
+              Pembayaran Sukses!
+            </CardTitle>
             <CardDescription className="text-sm mt-1 text-emerald-700/80">
               DP Pembayaran 50% berhasil kami terima.
             </CardDescription>
@@ -193,12 +216,16 @@ export default function BayarPage() {
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground leading-normal mt-4">
-                Pesanan Anda telah dimasukkan ke dalam antrean produksi. Tim kami akan segera memproses cutting dan penjahitan sesuai detail spesifikasi Anda.
+                Pesanan Anda telah dimasukkan ke dalam antrean produksi. Tim kami akan segera
+                memproses cutting dan penjahitan sesuai detail spesifikasi Anda.
               </p>
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-2 rounded-b-xl border-t bg-muted/10 py-4">
-            <Button onClick={() => router.push('/')} className="w-full py-5 font-bold shadow-md flex items-center justify-center gap-2">
+            <Button
+              onClick={() => router.push('/')}
+              className="w-full py-5 font-bold shadow-md flex items-center justify-center gap-2"
+            >
               <Home className="h-4 w-4" /> Ke Halaman Utama
             </Button>
           </CardFooter>
