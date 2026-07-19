@@ -10,6 +10,11 @@ import { RateLimiter } from '@mlv/ai';
  * Middleware reusable yang bakal dipakai di semua endpoint AI customer-facing.
  * Menggunakan Redis counter dengan TTL (infrastruktur Redis sudah ada sejak Fase 6).
  *
+ * FAIL-CLOSED: saat Redis down, rate limit TIDAK bisa diverifikasi →
+ * tolak request (503). Dari sisi pelanggan, hasilnya sama seperti AI
+ * gagal karena sebab lain — sudah ditangani fallback di caller
+ * (hasil_ekstraksi_ai = null, upload desain tetap jalan).
+ *
  * Header yang diharapkan:
  * - X-Customer-ID: ID pelanggan (dari API gateway / auth middleware)
  *
@@ -68,9 +73,18 @@ export class RateLimiterMiddleware implements NestMiddleware {
       if (error instanceof HttpException) {
         throw error;
       }
-      // If Redis is down, allow the request (fail-open for AI features)
-      this.logger.error(`Rate limiter error (fail-open): ${(error as Error).message}`);
-      next();
+      // FAIL-CLOSED: Redis down → rate limit tidak bisa diverifikasi → tolak.
+      // Caller (services/api) sudah menangani AI failure sebagai fallback
+      // (hasil_ekstraksi_ai = null, upload desain tetap jalan).
+      this.logger.error(
+        `Rate limiter Redis unavailable (fail-closed): ${(error as Error).message}`,
+      );
+      throw new HttpException(
+        {
+          message: 'Layanan AI sementara tidak tersedia. Silakan coba lagi nanti.',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 }

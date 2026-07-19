@@ -21,6 +21,8 @@
     "demo:checkout": "ts-node scripts/demo-checkout.ts",
     "demo:customer-chat": "ts-node scripts/demo-customer-chat.ts",
     "demo:reservation-expiry": "ts-node scripts/demo-reservation-expiry.ts",
+    "demo:ai-fallback": "ts-node scripts/demo-ai-fallback.ts",
+    "demo:ai-rate-limit": "ts-node scripts/demo-ai-rate-limit.ts",
     "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
   },
   "dependencies": {
