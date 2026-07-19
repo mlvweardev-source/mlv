@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
   TrendingUp,
   ShoppingCart,
   DollarSign,
-  Users,
   Clock,
   CheckCircle2,
   XCircle,
