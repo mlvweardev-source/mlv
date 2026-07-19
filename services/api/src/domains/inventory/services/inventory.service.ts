@@ -864,4 +864,136 @@ export class InventoryService {
       estimation: 'Bahan baku tersedia',
     };
   }
+
+  // ==========================================
+  // AI Inventory Prediction Context (Fase 12 Bagian 3)
+  // ==========================================
+
+  /**
+   * Kumpulkan konteks inventory lengkap untuk AI Inventory Prediction.
+   *
+   * Data dikumpulkan dari tabel milik Inventory Domain (stock_balances,
+   * stock_movements, bill_of_materials, materials). Untuk tren volume
+   * pesanan, caller (AiAssistantService) akan memanggil OrderService
+   * getOrderVolumeTrends() secara terpisah — InventoryService TIDAK
+   * query tabel orders langsung (DDD §4.1).
+   *
+   * @param orderVolumeTrends — data tren volume dari OrderService
+   */
+  async getInventoryContextForAi(
+    orderVolumeTrends?: Array<{
+      period: string;
+      orderCount: number;
+      itemsByProductType: Record<string, number>;
+    }>,
+  ): Promise<{
+    stockBalances: Array<{
+      materialNama: string;
+      materialId: string;
+      satuan: string;
+      qtyAvailable: number;
+      qtyReserved: number;
+      freeStock: number;
+    }>;
+    usageTrends: Array<{
+      materialNama: string;
+      materialId: string;
+      totalUsed: number;
+      periodeHari: number;
+      avgPerDay: number;
+    }>;
+    activeOrderCount: number;
+    bomSummary: Array<{
+      productType: string;
+      materials: Array<{ materialNama: string; qtyPerUnit: number; satuan: string }>;
+    }>;
+  }> {
+    const PERIODE_HARI = 30;
+
+    // 1. Stock balances (tabel milik Inventory Domain)
+    const balances = await prisma.stockBalance.findMany({
+      include: {
+        material: { select: { id: true, nama: true, satuan: true } },
+      },
+    });
+
+    const stockBalances = balances.map((b) => ({
+      materialNama: b.material.nama,
+      materialId: b.materialId,
+      satuan: b.material.satuan,
+      qtyAvailable: Number(b.qtyAvailable),
+      qtyReserved: Number(b.qtyReserved),
+      freeStock: Number(b.qtyAvailable) - Number(b.qtyReserved),
+    }));
+
+    // 2. Usage trends dari stock_movements OUT (tabel milik Inventory Domain)
+    const since = new Date(Date.now() - PERIODE_HARI * 24 * 60 * 60 * 1000);
+    const outMovements = await prisma.stockMovement.groupBy({
+      by: ['materialId'],
+      where: {
+        tipe: 'OUT',
+        createdAt: { gte: since },
+      },
+      _sum: { qty: true },
+    });
+
+    const materialIds = outMovements.map((m) => m.materialId);
+    const materials =
+      materialIds.length > 0
+        ? await prisma.material.findMany({
+            where: { id: { in: materialIds } },
+            select: { id: true, nama: true },
+          })
+        : [];
+    const materialMap = new Map(materials.map((m) => [m.id, m.nama]));
+
+    const usageTrends = outMovements.map((m) => {
+      const totalUsed = Number(m._sum.qty ?? 0);
+      return {
+        materialNama: materialMap.get(m.materialId) ?? 'Unknown',
+        materialId: m.materialId,
+        totalUsed,
+        periodeHari: PERIODE_HARI,
+        avgPerDay: totalUsed / PERIODE_HARI,
+      };
+    });
+
+    // 3. Active order count dari order volume trends (dari caller via OrderService)
+    const activeOrderCount = orderVolumeTrends?.reduce((sum, t) => sum + t.orderCount, 0) ?? 0;
+
+    // 4. BOM summary (tabel milik Inventory Domain)
+    const boms = await prisma.billOfMaterial.findMany({
+      include: {
+        material: { select: { nama: true, satuan: true } },
+      },
+      orderBy: [{ productType: 'asc' }],
+    });
+
+    const bomByProduct = new Map<
+      string,
+      Array<{ materialNama: string; qtyPerUnit: number; satuan: string }>
+    >();
+    for (const bom of boms) {
+      if (!bomByProduct.has(bom.productType)) {
+        bomByProduct.set(bom.productType, []);
+      }
+      bomByProduct.get(bom.productType)!.push({
+        materialNama: bom.material.nama,
+        qtyPerUnit: Number(bom.qtyPerUnit),
+        satuan: bom.material.satuan,
+      });
+    }
+
+    const bomSummary = Array.from(bomByProduct.entries()).map(([productType, materials]) => ({
+      productType,
+      materials,
+    }));
+
+    return {
+      stockBalances,
+      usageTrends,
+      activeOrderCount,
+      bomSummary,
+    };
+  }
 }

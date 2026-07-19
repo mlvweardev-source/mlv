@@ -726,4 +726,88 @@ export class ProductionService {
   ): Promise<void> {
     await this.orderService.addTimelineEvent(orderId, eventType, description, actorId);
   }
+
+  // ==========================================
+  // AI Production Assistant Context (Fase 12 Bagian 3)
+  // ==========================================
+
+  /**
+   * Kumpulkan konteks produksi lengkap untuk AI Production Assistant.
+   *
+   * Data dikumpulkan dari tabel milik Production Domain (production_tasks)
+   * + pemanggilan service method OrderService.getOrderByIdInternal() untuk
+   * info order. DDD §4.1: tidak query tabel orders langsung.
+   *
+   * @returns null kalau order tidak ditemukan
+   */
+  async getProductionContextForAi(orderId: string): Promise<{
+    orderNumber: string;
+    orderStatus: string;
+    tasks: Array<{
+      taskType: string;
+      sequence: number;
+      status: string;
+      assignedToNama: string | null;
+      productType: string;
+      startedAt: string | null;
+    }>;
+    taskCountByStage: Record<string, { total: number; active: number; waiting: number }>;
+  } | null> {
+    // Ambil info order via service method (DDD boundary)
+    const order = await this.orderService.getOrderByIdInternal(orderId);
+    if (!order) return null;
+
+    // Ambil semua task untuk order ini (tabel milik Production Domain sendiri)
+    const tasks = await prisma.productionTask.findMany({
+      where: {
+        orderItem: { orderId },
+      },
+      include: {
+        orderItem: {
+          select: { productType: true },
+        },
+      },
+      orderBy: [{ orderItem: { order: { createdAt: 'asc' } } }, { sequence: 'asc' }],
+    });
+
+    // Ambil nama assignee
+    const userIds = [...new Set(tasks.map((t) => t.assignedTo).filter(Boolean))];
+    const users =
+      userIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: userIds as string[] } },
+            select: { id: true, nama: true },
+          })
+        : [];
+    const userMap = new Map(users.map((u) => [u.id, u.nama]));
+
+    // Hitung jumlah task per tahap
+    const taskCountByStage: Record<string, { total: number; active: number; waiting: number }> = {};
+    for (const task of tasks) {
+      if (!taskCountByStage[task.taskType]) {
+        taskCountByStage[task.taskType] = { total: 0, active: 0, waiting: 0 };
+      }
+      taskCountByStage[task.taskType].total++;
+      if (task.status === 'SEDANG_DILAKSANAKAN' || task.status === 'DITERIMA') {
+        taskCountByStage[task.taskType].active++;
+      }
+      if (task.status === 'MENUNGGU') {
+        taskCountByStage[task.taskType].waiting++;
+      }
+    }
+
+    return {
+      orderNumber: order.orderNumber,
+      orderStatus: order.status,
+      tasks: tasks.map((t) => ({
+        taskType: t.taskType,
+        sequence: t.sequence,
+        status: t.status,
+        assignedToNama: t.assignedTo ? (userMap.get(t.assignedTo as string) ?? null) : null,
+        productType: t.orderItem.productType,
+        startedAt: t.startedAt?.toISOString() ?? null,
+      })),
+      taskCountByStage,
+    };
+  }
 }

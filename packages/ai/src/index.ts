@@ -25,3 +25,15 @@ export {
   buildCustomerSupportUserPrompt,
 } from './prompt-templates/customer-support';
 export type { CustomerSupportInput } from './prompt-templates/customer-support';
+
+export {
+  buildProductionAssistantSystemPrompt,
+  buildProductionAssistantUserPrompt,
+} from './prompt-templates/production-assistant';
+export type { ProductionAssistantInput } from './prompt-templates/production-assistant';
+
+export {
+  buildInventoryPredictionSystemPrompt,
+  buildInventoryPredictionUserPrompt,
+} from './prompt-templates/inventory-prediction';
+export type { InventoryPredictionInput } from './prompt-templates/inventory-prediction';

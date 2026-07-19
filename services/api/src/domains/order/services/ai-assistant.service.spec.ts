@@ -135,4 +135,154 @@ describe('AiAssistantService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('suggestProductionAnalysis', () => {
+    const baseProductionContext = {
+      orderNumber: 'MLV-20260719-0001',
+      orderStatus: 'ANTREAN',
+      tasks: [
+        {
+          taskType: 'CUTTING',
+          sequence: 1,
+          status: 'SEDANG_DILAKSANAKAN',
+          assignedToNama: 'Budi',
+          productType: 'Kaos',
+          startedAt: '2026-07-19T10:00:00Z',
+        },
+      ],
+      taskCountByStage: {
+        CUTTING: { total: 2, active: 1, waiting: 1 },
+      },
+    };
+
+    it('should POST to /ai/production-assistant with production context', async () => {
+      const mockResponse = {
+        insight: {
+          estimasi_lead_time: '2 hari',
+          bottleneck: { terdeteksi: false, tahap: null, alasan: null, jumlah_task_menumpuk: null },
+          saran_urutan: [],
+          ringkasan: 'Normal',
+        },
+      };
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await service.suggestProductionAnalysis(baseProductionContext, 'owner-1');
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://ai-gateway.test:3002/ai/production-assistant',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            ...baseProductionContext,
+            customerId: 'owner-1',
+          }),
+        }),
+      );
+    });
+
+    it('should return null when AI gateway unavailable', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({ ok: false, status: 429 });
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await service.suggestProductionAnalysis(baseProductionContext, 'owner-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when fetch throws', async () => {
+      const mockFetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await service.suggestProductionAnalysis(baseProductionContext, 'owner-1');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('predictInventory', () => {
+    const baseInventoryContext = {
+      stockBalances: [
+        {
+          materialNama: 'Kain Katun',
+          materialId: 'mat-1',
+          satuan: 'meter',
+          qtyAvailable: 100,
+          qtyReserved: 20,
+          freeStock: 80,
+        },
+      ],
+      usageTrends: [
+        {
+          materialNama: 'Kain Katun',
+          materialId: 'mat-1',
+          totalUsed: 150,
+          periodeHari: 30,
+          avgPerDay: 5,
+        },
+      ],
+      activeOrderCount: 5,
+      bomSummary: [
+        {
+          productType: 'Kaos',
+          materials: [{ materialNama: 'Kain Katun', qtyPerUnit: 2, satuan: 'meter' }],
+        },
+      ],
+    };
+
+    it('should POST to /ai/inventory-prediction with inventory context', async () => {
+      const mockResponse = {
+        prediksi: {
+          prediksi: [
+            {
+              materialNama: 'Kain Katun',
+              materialId: 'mat-1',
+              status: 'AMAN',
+              stok_saat_ini: 100,
+              free_stock: 80,
+              avg_per_day: 5,
+              estimasi_habis_hari: 16,
+              saran_qty_beli: 0,
+              satuan: 'meter',
+              alasan: 'Stok aman',
+            },
+          ],
+          ringkasan: 'Semua material aman',
+          rekomendasi_umum: 'Tidak perlu restock',
+        },
+      };
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await service.predictInventory(baseInventoryContext, 'owner-1');
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://ai-gateway.test:3002/ai/inventory-prediction',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            ...baseInventoryContext,
+            customerId: 'owner-1',
+          }),
+        }),
+      );
+    });
+
+    it('should return null when AI gateway unavailable', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await service.predictInventory(baseInventoryContext, 'owner-1');
+
+      expect(result).toBeNull();
+    });
+  });
 });

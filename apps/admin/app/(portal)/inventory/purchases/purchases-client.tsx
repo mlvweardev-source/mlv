@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Check, Plus } from 'lucide-react';
 import { apiFetch, apiJson } from '@/lib/api';
 import type { Material, PurchaseOrderRow } from '@/lib/types';
@@ -19,17 +20,21 @@ import {
 } from '@/components/ui/table';
 
 export function PurchasesClient({ canAct }: { canAct: boolean }) {
+  const searchParams = useSearchParams();
+  const prefillMaterialId = searchParams.get('materialId');
+  const prefillQty = searchParams.get('qty');
+
   const [purchases, setPurchases] = useState<PurchaseOrderRow[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!prefillMaterialId);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({
     supplier: '',
-    materialId: '',
-    qty: '',
+    materialId: prefillMaterialId ?? '',
+    qty: prefillQty ?? '',
     totalBiaya: '',
     tglBeli: '',
   });

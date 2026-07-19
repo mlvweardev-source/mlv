@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw, X, Sparkles, AlertTriangle, Clock, ArrowRight } from 'lucide-react';
 import { apiFetch, apiJson } from '@/lib/api';
 import {
   TASK_TYPES,
@@ -16,7 +16,26 @@ import { TaskStatusBadge } from '@/components/task-status-badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+
+/** AI Production Assistant result type */
+interface ProductionAiInsight {
+  estimasi_lead_time: string;
+  bottleneck: {
+    terdeteksi: boolean;
+    tahap: string | null;
+    alasan: string | null;
+    jumlah_task_menumpuk: number | null;
+  };
+  saran_urutan: Array<{
+    prioritas: 'TINGGI' | 'SEDANG' | 'RENDAH';
+    tahap: string;
+    saran: string;
+    alasan: string;
+  }>;
+  ringkasan: string;
+}
 
 /**
  * Transisi status yang divalidasi backend (production.service.ts):
@@ -43,6 +62,12 @@ export function ProductionKanban() {
   const [error, setError] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [selected, setSelected] = useState<ProductionTask | null>(null);
+
+  // AI Production Assistant state
+  const [aiInsight, setAiInsight] = useState<ProductionAiInsight | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
 
   const loadTasks = useCallback(async () => {
     setError(null);
@@ -79,6 +104,46 @@ export function ProductionKanban() {
     [visibleTasks],
   );
 
+  // Unique orders from tasks for AI dropdown
+  const uniqueOrders = useMemo(() => {
+    const orderMap = new Map<string, { id: string; orderNumber: string }>();
+    for (const task of tasks) {
+      if (task.orderItem?.order && !orderMap.has(task.orderItem.order.id)) {
+        orderMap.set(task.orderItem.order.id, {
+          id: task.orderItem.order.id,
+          orderNumber: task.orderItem.order.orderNumber,
+        });
+      }
+    }
+    return Array.from(orderMap.values());
+  }, [tasks]);
+
+  // AI Production Assistant handler
+  const handleAiAnalysis = useCallback(async () => {
+    if (!selectedOrderId) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiInsight(null);
+    try {
+      const result = await apiFetch<{ insight: ProductionAiInsight | null }>(
+        '/ai-assistant/production-assistant',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: selectedOrderId }),
+        },
+      );
+      setAiInsight(result.insight);
+      if (!result.insight) {
+        setAiError('AI tidak tersedia saat ini. Coba lagi nanti.');
+      }
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Gagal meminta analisis AI');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [selectedOrderId]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -103,6 +168,56 @@ export function ProductionKanban() {
           </Button>
         </div>
       </div>
+
+      {/* AI Production Assistant Panel */}
+      <Card className="border-dashed border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <div className="flex-1 min-w-[200px]">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              <Sparkles className="mr-1 inline h-3 w-3" />
+              AI Production Assistant
+            </p>
+            <Select
+              value={selectedOrderId}
+              onChange={(e) => {
+                setSelectedOrderId(e.target.value);
+                setAiInsight(null);
+                setAiError(null);
+              }}
+            >
+              <option value="">Pilih order untuk dianalisis…</option>
+              {uniqueOrders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.orderNumber}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Button
+            onClick={() => void handleAiAnalysis()}
+            disabled={!selectedOrderId || aiLoading}
+            size="sm"
+          >
+            {aiLoading ? (
+              <>
+                <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> Menganalisis…
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-1 h-4 w-4" /> Analisis Produksi
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {aiError && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p>
+      )}
+
+      {aiInsight && (
+        <ProductionInsightPanel insight={aiInsight} onClose={() => setAiInsight(null)} />
+      )}
 
       {error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
@@ -322,5 +437,92 @@ function TaskDetailPanel({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Panel insight AI produksi: bottleneck, saran urutan, estimasi lead time. */
+function ProductionInsightPanel({
+  insight,
+  onClose,
+}: {
+  insight: ProductionAiInsight;
+  onClose: () => void;
+}) {
+  const priorityColors: Record<string, string> = {
+    TINGGI: 'bg-destructive/15 text-destructive',
+    SEDANG: 'bg-yellow-100 text-yellow-800',
+    RENDAH: 'bg-muted text-muted-foreground',
+  };
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Insight Produksi AI</h3>
+          </div>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+
+        <p className="text-sm text-muted-foreground">{insight.ringkasan}</p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Lead Time */}
+          <div className="rounded-md border bg-background p-3">
+            <div className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              <Clock className="h-3 w-3" /> Estimasi Lead Time
+            </div>
+            <p className="text-lg font-semibold">{insight.estimasi_lead_time}</p>
+          </div>
+
+          {/* Bottleneck */}
+          <div className="rounded-md border bg-background p-3">
+            <div className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              <AlertTriangle className="h-3 w-3" /> Bottleneck
+            </div>
+            {insight.bottleneck.terdeteksi ? (
+              <div>
+                <p className="text-sm font-semibold text-destructive">
+                  {insight.bottleneck.tahap} — {insight.bottleneck.jumlah_task_menumpuk} task
+                  menumpuk
+                </p>
+                <p className="text-xs text-muted-foreground">{insight.bottleneck.alasan}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-green-600">Tidak terdeteksi</p>
+            )}
+          </div>
+        </div>
+
+        {/* Saran Urutan */}
+        {insight.saran_urutan.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Saran Prioritas:</p>
+            <div className="space-y-2">
+              {insight.saran_urutan.map((saran, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-md border bg-background p-3">
+                  <Badge className={cn('shrink-0', priorityColors[saran.prioritas] ?? '')}>
+                    {saran.prioritas}
+                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {saran.tahap} <ArrowRight className="mx-1 inline h-3 w-3" /> {saran.saran}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{saran.alasan}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="text-[10px] italic text-muted-foreground">
+          Ini adalah saran AI — staf yang memutuskan tindak lanjut. Tidak ada perubahan otomatis.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

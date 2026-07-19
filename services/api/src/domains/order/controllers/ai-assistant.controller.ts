@@ -3,25 +3,36 @@ import { AllowCustomer, AuthGuard, Roles } from '../../identity-access/guards/au
 import { UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 import { AiAssistantService } from '../services/ai-assistant.service';
+import { ProductionService } from '../../production/services/production.service';
+import { InventoryService } from '../../inventory/services/inventory.service';
+import { OrderService } from '../services/order.service';
 
 /**
- * AI Assistant endpoints (Fase 12 Bagian 2)
+ * AI Assistant endpoints (Fase 12 Bagian 2 + 3)
  *
  * Proxy ke ai-gateway. services/api sbg orchestration layer.
  * - Quotation Assistant: Owner/Manajer minta saran harga.
- * - Customer Support: dipanggil oleh CustomerChatService (saat pelanggan
- *   kirim pesan baru, di-backround setelah message disimpan).
+ * - Customer Support: dipanggil oleh CustomerChatService.
+ * - Production Assistant: Owner/Manajer minta insight produksi.
+ * - Inventory Prediction: Owner/Manajer minta prediksi restock.
  *
  * §17.4: Hasil Quotation HANYA saran, harga final manusia.
  * §9: Customer Support HANYA jawab dari konteks, escalate kalau di luar.
+ * §9: Production Assistant HANYA saran — tidak auto-reorder task.
+ * §9: Inventory Prediction HANYA saran — tidak auto-create PO.
  *
  * Prinsip Fase 8: ai-gateway TIDAK query balik ke domain lain.
- * Semua data order harus lengkap di payload dari services/api.
+ * Semua data harus lengkap di payload dari services/api.
  */
 @Controller('ai-assistant')
 @UseGuards(AuthGuard)
 export class AiAssistantController {
-  constructor(private readonly aiAssistantService: AiAssistantService) {}
+  constructor(
+    private readonly aiAssistantService: AiAssistantService,
+    private readonly productionService: ProductionService,
+    private readonly inventoryService: InventoryService,
+    private readonly orderService: OrderService,
+  ) {}
 
   /**
    * POST /ai-assistant/quotation
@@ -99,5 +110,44 @@ export class AiAssistantController {
       dto.orderContext,
       req.user.sub,
     );
+  }
+
+  /**
+   * POST /ai-assistant/production-assistant
+   *
+   * Minta insight produksi AI untuk satu order. Owner & Manajer saja.
+   * §9: HANYA saran — tidak pernah auto-reorder task atau ubah assignment.
+   */
+  @Post('production-assistant')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async productionAssistant(@Body() dto: { orderId: string }, @Req() req: { user: JwtPayload }) {
+    if (!dto.orderId) {
+      throw new BadRequestException('orderId wajib diisi');
+    }
+
+    // Kumpulkan konteks dari Production Domain (DDD §4.1: service method)
+    const context = await this.productionService.getProductionContextForAi(dto.orderId);
+    if (!context) {
+      throw new BadRequestException('Order tidak ditemukan');
+    }
+
+    // Kirim ke ai-gateway
+    return this.aiAssistantService.suggestProductionAnalysis(context, req.user.sub);
+  }
+
+  /**
+   * POST /ai-assistant/inventory-prediction
+   *
+   * Minta prediksi restock AI. Owner & Manajer saja.
+   * §9: HANYA saran — tidak pernah auto-create Purchase Order.
+   */
+  @Post('inventory-prediction')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async inventoryPrediction(@Req() req: { user: JwtPayload }) {
+    // Kumpulkan konteks dari Inventory Domain + Order Domain (DDD §4.1)
+    const orderTrends = await this.orderService.getOrderVolumeTrends(30);
+    const inventoryContext = await this.inventoryService.getInventoryContextForAi(orderTrends);
+
+    return this.aiAssistantService.predictInventory(inventoryContext, req.user.sub);
   }
 }

@@ -10,6 +10,7 @@ const TABS = [
   { href: '/inventory/bom', label: 'BOM' },
   { href: '/inventory/adjustments', label: 'Penyesuaian' },
   { href: '/inventory/purchases', label: 'Pembelian' },
+  { href: '/inventory/prediction', label: 'Prediksi AI' },
 ];
 
 export default function InventoryLayout({ children }: { children: React.ReactNode }) {

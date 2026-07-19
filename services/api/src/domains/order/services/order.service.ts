@@ -1917,4 +1917,67 @@ export class OrderService {
       updatedAt: order.updatedAt,
     };
   }
+
+  // ==========================================
+  // AI Inventory Prediction: Order Volume Trends
+  // ==========================================
+
+  /**
+   * Ambil tren volume pesanan untuk konteks AI Inventory Prediction.
+   *
+   * Data dari tabel orders (milik Order Domain sendiri) — bukan query
+   * lintas domain. Dipanggil oleh AiAssistantService yang mengumpulkan
+   * data dari InventoryService + OrderService sebelum kirim ke ai-gateway.
+   *
+   * @param days — jumlah hari ke belakang (default 30)
+   */
+  async getOrderVolumeTrends(days: number = 30): Promise<
+    Array<{
+      period: string;
+      orderCount: number;
+      itemsByProductType: Record<string, number>;
+    }>
+  > {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: since },
+        status: { notIn: ['DRAFT', 'DIBATALKAN'] },
+      },
+      include: {
+        items: {
+          select: { productType: true },
+        },
+      },
+    });
+
+    // Group by week
+    const weekMap = new Map<
+      string,
+      { orderCount: number; itemsByProductType: Record<string, number> }
+    >();
+
+    for (const order of orders) {
+      // Week label: YYYY-Www
+      const weekStart = new Date(order.createdAt);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekLabel = weekStart.toISOString().slice(0, 10);
+
+      if (!weekMap.has(weekLabel)) {
+        weekMap.set(weekLabel, { orderCount: 0, itemsByProductType: {} });
+      }
+      const entry = weekMap.get(weekLabel)!;
+      entry.orderCount++;
+
+      for (const item of order.items) {
+        entry.itemsByProductType[item.productType] =
+          (entry.itemsByProductType[item.productType] ?? 0) + 1;
+      }
+    }
+
+    return Array.from(weekMap.entries())
+      .map(([period, data]) => ({ period, ...data }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+  }
 }

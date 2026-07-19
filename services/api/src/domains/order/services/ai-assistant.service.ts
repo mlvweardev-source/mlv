@@ -78,6 +78,69 @@ export class AiAssistantService {
     });
   }
 
+  /**
+   * Panggil AI Production Assistant. Return null kalau AI tidak tersedia.
+   * Caller (ProductionService / controller) menampilkan insight ke staf —
+   * tidak pernah auto-reorder task atau ubah assignment.
+   */
+  async suggestProductionAnalysis(
+    productionContext: {
+      orderNumber: string;
+      orderStatus: string;
+      tasks: Array<{
+        taskType: string;
+        sequence: number;
+        status: string;
+        assignedToNama: string | null;
+        productType: string;
+        startedAt: string | null;
+      }>;
+      taskCountByStage: Record<string, { total: number; active: number; waiting: number }>;
+    },
+    customerId: string,
+  ): Promise<{ insight: unknown } | null> {
+    return this.callAi<{ insight: unknown }>('/ai/production-assistant', {
+      ...productionContext,
+      customerId,
+    });
+  }
+
+  /**
+   * Panggil AI Inventory Prediction. Return null kalau AI tidak tersedia.
+   * Caller (controller) menampilkan prediksi restock ke Manajer —
+   * tidak pernah auto-create Purchase Order.
+   */
+  async predictInventory(
+    inventoryContext: {
+      stockBalances: Array<{
+        materialNama: string;
+        materialId: string;
+        satuan: string;
+        qtyAvailable: number;
+        qtyReserved: number;
+        freeStock: number;
+      }>;
+      usageTrends: Array<{
+        materialNama: string;
+        materialId: string;
+        totalUsed: number;
+        periodeHari: number;
+        avgPerDay: number;
+      }>;
+      activeOrderCount: number;
+      bomSummary: Array<{
+        productType: string;
+        materials: Array<{ materialNama: string; qtyPerUnit: number; satuan: string }>;
+      }>;
+    },
+    customerId: string,
+  ): Promise<{ prediksi: unknown } | null> {
+    return this.callAi<{ prediksi: unknown }>('/ai/inventory-prediction', {
+      ...inventoryContext,
+      customerId,
+    });
+  }
+
   private async callAi<T>(path: string, body: unknown): Promise<T | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
