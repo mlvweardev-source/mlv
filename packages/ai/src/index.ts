@@ -13,3 +13,15 @@ export {
   buildDesignAnalyzerUserPrompt,
 } from './prompt-templates/design-analyzer';
 export type { DesignAnalyzerInput } from './prompt-templates/design-analyzer';
+
+export {
+  buildQuotationSystemPrompt,
+  buildQuotationUserPrompt,
+} from './prompt-templates/quotation-assistant';
+export type { QuotationAssistantInput } from './prompt-templates/quotation-assistant';
+
+export {
+  buildCustomerSupportSystemPrompt,
+  buildCustomerSupportUserPrompt,
+} from './prompt-templates/customer-support';
+export type { CustomerSupportInput } from './prompt-templates/customer-support';

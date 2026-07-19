@@ -17,6 +17,12 @@ export interface GeminiGenerateOptions {
   maxOutputTokens?: number;
   /** Temperature (default: 0.4 — lebih deterministic untuk ekstraksi) */
   temperature?: number;
+  /**
+   * Force JSON output via response_mime_type='application/json'.
+   * Aktifkan untuk prompt yang meminta JSON terstruktur — mengurangi
+   * risiko AI mengembalikan teks tambahan di luar JSON.
+   */
+  jsonMode?: boolean;
 }
 
 export interface GeminiGenerateResult {
@@ -43,13 +49,23 @@ export class GeminiClient {
    * Supports optional image input for multimodal analysis.
    */
   async generate(options: GeminiGenerateOptions): Promise<GeminiGenerateResult> {
-    const { prompt, imageData, imageMimeType, maxOutputTokens = 2048, temperature = 0.4 } = options;
+    const {
+      prompt,
+      imageData,
+      imageMimeType,
+      maxOutputTokens = 2048,
+      temperature = 0.4,
+      jsonMode = false,
+    } = options;
 
     const model = this.genAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {
         maxOutputTokens,
         temperature,
+        // Fase 12 Bagian 2: structured JSON output untuk prompt Quotation
+        // & Customer Support (mengurangi parse error dari teks tambahan)
+        ...(jsonMode ? { responseMimeType: 'application/json' as const } : {}),
       },
     });
 

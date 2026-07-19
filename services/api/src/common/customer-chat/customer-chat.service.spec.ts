@@ -5,6 +5,7 @@ import type { JwtPayload } from '@mlv/auth';
 import { CustomerChatService } from './customer-chat.service';
 import { AuthService } from '../../domains/identity-access/services/auth.service';
 import { CustomerService } from '../../domains/customer/services/customer.service';
+import { AiAssistantService } from '../../domains/order/services/ai-assistant.service';
 
 // Mock prisma
 jest.mock('@mlv/db', () => ({
@@ -71,6 +72,12 @@ describe('CustomerChatService — RBAC & Sender Type', () => {
         {
           provide: CustomerService,
           useValue: { getCustomerByIdInternal: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          // Fase 12 Bagian 2: AI assistant service di-inject tapi
+          // default no-op (tidak post auto-reply di test).
+          provide: AiAssistantService,
+          useValue: { answerCustomerQuestion: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();

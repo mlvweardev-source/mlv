@@ -11,6 +11,7 @@ import { OrderStatusBadge, statusLabel } from '@/components/order-status-badge';
 import { OrderPaymentsSection } from './order-payments-section';
 import { SubmitApprovalDialog } from './submit-approval-dialog';
 import { CreateShipmentDialog } from './create-shipment-dialog';
+import { QuotationAssistantDialog } from './quotation-assistant-dialog';
 import { ChatPanel } from '@/components/chat-panel';
 import { CustomerChatPanel } from '@/components/customer-chat-panel';
 import { ActivityLogSection } from '@/components/activity-log-section';
@@ -229,6 +230,16 @@ export function OrderDetailClient({
             <Button variant="outline" onClick={handleDuplicate} disabled={busy}>
               <Copy className="h-4 w-4" /> Repeat Order
             </Button>
+            <QuotationAssistantDialog
+              orderId={order.id}
+              items={order.items.map((i) => ({
+                id: i.id,
+                productType: i.productType,
+                basePriceSnapshot: i.basePriceSnapshot,
+                sizes: i.sizes,
+                designs: i.designs,
+              }))}
+            />
             <SubmitApprovalDialog
               orderId={order.id}
               items={order.items.map((i) => ({ id: i.id, label: i.productType }))}

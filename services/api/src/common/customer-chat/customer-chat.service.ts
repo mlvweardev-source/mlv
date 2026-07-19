@@ -4,6 +4,7 @@ import { ActorType, UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 import { AuthService } from '../../domains/identity-access/services/auth.service';
 import { CustomerService } from '../../domains/customer/services/customer.service';
+import { AiAssistantService } from '../../domains/order/services/ai-assistant.service';
 
 /** Tipe pengirim pesan — mirror enum CustomerChatSenderType di Prisma. */
 type SenderType = 'customer' | 'admin' | 'ai_bot';
@@ -21,6 +22,28 @@ export interface ChatMessageDto {
 /** Callback untuk subscriber SSE */
 type SubscriberCallback = (msg: ChatMessageDto) => void;
 
+/** Bentuk context order yang dikirim ke AI Customer Support */
+interface AiSupportContext {
+  orderNumber: string;
+  status: string;
+  items: Array<{ productType: string; qty: number; basePriceSnapshot: number }>;
+  timeline: Array<{ tipeEvent: string; deskripsi: string; createdAt: string }>;
+  payments: Array<{
+    jenis: 'DP' | 'PELUNASAN';
+    jumlah: number;
+    status: string;
+    createdAt: string;
+  }>;
+  invoices: Array<{ jenis: 'DP' | 'PELUNASAN'; jumlah: number; status: string }>;
+  shipment: {
+    kurir: string;
+    noResi: string | null;
+    status: string;
+    shippedAt: string | null;
+    deliveredAt: string | null;
+  } | null;
+}
+
 @Injectable()
 export class CustomerChatService {
   private readonly logger = new Logger(CustomerChatService.name);
@@ -31,6 +54,7 @@ export class CustomerChatService {
   constructor(
     private readonly authService: AuthService,
     private readonly customerService: CustomerService,
+    private readonly aiAssistantService: AiAssistantService,
   ) {}
 
   /**
@@ -142,6 +166,11 @@ export class CustomerChatService {
    * Kirim pesan ke thread.
    * senderType ditentukan dari actor: CUSTOMER → 'customer', USER (staf) → 'admin'.
    * Setelah disimpan ke DB, push ke semua subscriber SSE.
+   *
+   * Fase 12 Bagian 2: kalau pengirim adalah CUSTOMER, panggil AI Customer
+   * Support setelah pesan disimpan. Kalau AI bisa jawab dari konteks order
+   * (canAnswer=true), post balasan sebagai senderType='ai_bot' dan push SSE.
+   * Kalau tidak, biarkan pesan masuk — staf akan balas manual seperti biasa.
    */
   async sendMessage(orderId: string, user: JwtPayload, pesan: string): Promise<ChatMessageDto> {
     const order = await prisma.order.findUnique({
@@ -178,21 +207,159 @@ export class CustomerChatService {
     };
 
     // Push ke semua subscriber SSE thread ini
-    const subs = this.subscribers.get(thread.id);
-    if (subs) {
-      for (const cb of subs) {
-        try {
-          cb(enriched);
-        } catch {
-          /* client disconnect */
-        }
-      }
-    }
+    this.notifySubscribers(thread.id, enriched);
 
     this.logger.debug(
       `Customer chat message posted to thread ${thread.id} (${senderType}): "${pesan.slice(0, 40)}..."`,
     );
+
+    // Fase 12 Bagian 2: AI auto-reply untuk pesan dari CUSTOMER.
+    // Penting: TIDAK awaited — jalankan di background supaya response
+    // POST /customer-chat tidak ke-block oleh AI call. AI reply akan
+    // muncul via SSE push.
+    if (user.actorType === ActorType.CUSTOMER) {
+      void this.tryAiAutoReply(thread.id, orderId, pesan, user.sub);
+    }
+
     return enriched;
+  }
+
+  /**
+   * Try AI auto-reply untuk pesan dari customer (§9, Fase 12 Bagian 2).
+   *
+   * Alur:
+   * 1. Kumpulkan konteks order lengkap (status, items, timeline, payments,
+   *    shipment) — semua lewat Prisma langsung, TIDAK query domain lain.
+   * 2. Panggil AI gateway (lewat AiAssistantService) dengan konteks.
+   * 3. Kalau canAnswer=true → post balasan sbg ai_bot + push SSE.
+   * 4. Kalau canAnswer=false → tidak post apa-apa (eskalasi, staf balas manual).
+   * 5. Kalau AI gagal/timeout → diam, no auto-reply (fail-safe).
+   *
+   * Background: tidak awaited, error di-catch supaya tidak crash caller.
+   */
+  private async tryAiAutoReply(
+    threadId: string,
+    orderId: string,
+    pertanyaan: string,
+    customerId: string,
+  ): Promise<void> {
+    try {
+      // 1. Kumpulkan konteks order
+      const ctx = await this.buildAiSupportContext(orderId);
+      if (!ctx) return; // order sudah tidak ada (race condition)
+
+      // 2. Panggil AI
+      const response = await this.aiAssistantService.answerCustomerQuestion(
+        pertanyaan,
+        ctx,
+        customerId,
+      );
+      if (!response || !response.hasil) return; // AI tidak tersedia / gagal
+
+      const hasil = response.hasil as {
+        canAnswer?: boolean;
+        jawaban?: string;
+        alasan_eskalasi?: string;
+      };
+
+      // 3. Kalau canAnswer=true → post balasan ai_bot
+      if (hasil.canAnswer && hasil.jawaban) {
+        await this.postAiBotMessage(threadId, hasil.jawaban);
+        this.logger.log(`AI auto-reply posted for thread ${threadId} (order ${ctx.orderNumber})`);
+      } else {
+        // 4. canAnswer=false → eskalasi, TIDAK post auto-reply
+        this.logger.debug(
+          `AI escalated to human for thread ${threadId}: ${hasil.alasan_eskalasi ?? 'no reason'}`,
+        );
+      }
+    } catch (error: any) {
+      // 5. Fail-safe: error apapun, diam. Staf tetap bisa balas manual.
+      this.logger.warn(`AI auto-reply failed for thread ${threadId}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Post balasan AI ke thread dengan senderType='ai_bot' (senderId=null).
+   * Setelah disimpan, push ke semua subscriber SSE supaya pelanggan langsung
+   * melihatnya.
+   */
+  private async postAiBotMessage(threadId: string, pesan: string): Promise<void> {
+    const message = await prisma.customerChatMessage.create({
+      data: {
+        threadId,
+        senderType: 'ai_bot',
+        senderId: null,
+        pesan,
+      },
+    });
+
+    const enriched: ChatMessageDto = {
+      id: message.id,
+      senderId: null,
+      senderType: 'ai_bot',
+      senderNama: this.defaultSenderName('ai_bot'),
+      pesan: message.pesan,
+      createdAt: message.createdAt,
+    };
+
+    this.notifySubscribers(threadId, enriched);
+  }
+
+  /**
+   * Bangun konteks order lengkap untuk AI Customer Support.
+   * Mengumpulkan data dari DB langsung (paritas Fase 8: payload lengkap
+   * di sisi publisher, ai-gateway tidak query balik).
+   */
+  private async buildAiSupportContext(orderId: string): Promise<AiSupportContext | null> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { sizes: true } },
+        timeline: { orderBy: { createdAt: 'asc' } },
+        payments: { orderBy: { createdAt: 'asc' } },
+        invoices: { orderBy: { createdAt: 'asc' } },
+        shipments: { take: 1, orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!order) return null;
+
+    return {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      items: order.items.map((item) => ({
+        productType: item.productType,
+        qty: item.sizes.reduce((sum, s) => sum + s.qty, 0),
+        basePriceSnapshot: item.basePriceSnapshot,
+      })),
+      timeline: order.timeline.map((t) => ({
+        tipeEvent: t.tipeEvent,
+        deskripsi: t.deskripsi,
+        createdAt: t.createdAt.toISOString(),
+      })),
+      payments: order.payments
+        .filter((p) => p.status === 'SUCCESS') // hanya yg sukses yang relevan
+        .map((p) => ({
+          jenis: p.jenis as 'DP' | 'PELUNASAN',
+          jumlah: p.jumlah,
+          status: p.status,
+          createdAt: p.createdAt.toISOString(),
+        })),
+      invoices: order.invoices.map((i) => ({
+        jenis: i.jenis as 'DP' | 'PELUNASAN',
+        jumlah: i.jumlah,
+        status: i.status,
+      })),
+      shipment: order.shipments[0]
+        ? {
+            kurir: order.shipments[0].kurir,
+            noResi: order.shipments[0].noResi,
+            status: order.shipments[0].status,
+            shippedAt: order.shipments[0].shippedAt?.toISOString() ?? null,
+            deliveredAt: order.shipments[0].deliveredAt?.toISOString() ?? null,
+          }
+        : null,
+    };
   }
 
   /**
@@ -216,6 +383,19 @@ export class CustomerChatService {
   // =====================
   // Helpers
   // =====================
+
+  private notifySubscribers(threadId: string, msg: ChatMessageDto): void {
+    const subs = this.subscribers.get(threadId);
+    if (subs) {
+      for (const cb of subs) {
+        try {
+          cb(msg);
+        } catch {
+          /* client disconnect */
+        }
+      }
+    }
+  }
 
   private async resolveSenderName(
     senderType: SenderType,
