@@ -138,6 +138,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPeriod('month')}
+            data-testid="period-month"
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               period === 'month'
                 ? 'bg-primary text-primary-foreground'
@@ -148,6 +149,7 @@ export default function DashboardPage() {
           </button>
           <button
             onClick={() => setPeriod('week')}
+            data-testid="period-week"
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               period === 'week'
                 ? 'bg-primary text-primary-foreground'
@@ -158,6 +160,7 @@ export default function DashboardPage() {
           </button>
           <button
             onClick={() => setPeriod('custom')}
+            data-testid="period-custom"
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               period === 'custom'
                 ? 'bg-primary text-primary-foreground'
@@ -172,6 +175,7 @@ export default function DashboardPage() {
                 type="date"
                 value={customFrom}
                 onChange={(e) => setCustomFrom(e.target.value)}
+                data-testid="period-from"
                 className="rounded-md border bg-background px-2 py-1 text-sm"
               />
               <span className="text-xs text-muted-foreground">s/d</span>
@@ -179,6 +183,7 @@ export default function DashboardPage() {
                 type="date"
                 value={customTo}
                 onChange={(e) => setCustomTo(e.target.value)}
+                data-testid="period-to"
                 className="rounded-md border bg-background px-2 py-1 text-sm"
               />
             </div>
@@ -189,7 +194,7 @@ export default function DashboardPage() {
       {/* Financial KPIs (Owner-only) */}
       {isOwner && (
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card data-testid="kpi-omzet">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Omzet</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -202,7 +207,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="kpi-profit">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Profit</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -220,7 +225,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="kpi-aov">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">AOV</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -235,7 +240,7 @@ export default function DashboardPage() {
 
       {/* Operational KPIs */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card data-testid="kpi-order-aktif">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Order Aktif</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
@@ -288,7 +293,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {/* Revenue Line Chart (Owner-only) */}
         {isOwner && revenueChartData.length > 0 && (
-          <Card>
+          <Card data-testid="chart-revenue">
             <CardHeader>
               <CardTitle className="text-sm font-medium">Omzet Bulanan (Juta Rp)</CardTitle>
             </CardHeader>
@@ -315,7 +320,7 @@ export default function DashboardPage() {
 
         {/* Order Status Pie Chart */}
         {orderPieData.length > 0 && (
-          <Card>
+          <Card data-testid="chart-order-status">
             <CardHeader>
               <CardTitle className="text-sm font-medium">Status Order</CardTitle>
             </CardHeader>

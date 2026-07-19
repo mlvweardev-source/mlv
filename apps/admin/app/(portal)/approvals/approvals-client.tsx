@@ -197,6 +197,7 @@ export function ApprovalsClient({ canDecide }: { canDecide: boolean }) {
                               size="sm"
                               onClick={() => void handleDecide(a.id, 'APPROVED')}
                               disabled={busyId === a.id}
+                              data-testid="approve-btn"
                             >
                               <Check className="h-3 w-3" /> Approve
                             </Button>
@@ -205,6 +206,7 @@ export function ApprovalsClient({ canDecide }: { canDecide: boolean }) {
                               size="sm"
                               onClick={() => void handleDecide(a.id, 'REJECTED')}
                               disabled={busyId === a.id}
+                              data-testid="reject-btn"
                             >
                               <X className="h-3 w-3" /> Reject
                             </Button>

@@ -2,6 +2,15 @@
 
 const API_URL = Cypress.env('API_URL') || 'http://localhost:3000';
 
+declare global {
+  namespace Cypress {
+    interface Chainable {
+      loginAsStaff(email: string, password: string): Chainable<void>;
+      loginAsCustomer(customerId: string): Chainable<void>;
+    }
+  }
+}
+
 /**
  * Login as staff via API and set auth cookies.
  */

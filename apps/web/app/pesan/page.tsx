@@ -399,6 +399,7 @@ export default function PesanPage() {
                       key={type}
                       type="button"
                       onClick={() => setProductType(type)}
+                      data-testid={`product-${type.toLowerCase()}`}
                       className={`flex flex-col items-center justify-center p-4 rounded-xl border text-center transition-all ${
                         productType === type
                           ? 'border-primary bg-primary/5 ring-1 ring-primary font-semibold'
@@ -440,6 +441,7 @@ export default function PesanPage() {
                         value={sizes[size] || ''}
                         onChange={(e) => handleQtyChange(size, e.target.value)}
                         className="text-center font-semibold"
+                        data-testid={`qty-${size.toLowerCase()}`}
                       />
                     </div>
                   ))}
@@ -509,6 +511,7 @@ export default function PesanPage() {
                       accept="image/jpeg,image/png,image/webp,application/pdf"
                       onChange={(e) => setDesignFile(e.target.files?.[0] || null)}
                       className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      data-testid="design-upload"
                     />
                     {designFile ? (
                       <div className="text-center space-y-2">
@@ -539,6 +542,7 @@ export default function PesanPage() {
                     value={catatanTeks}
                     onChange={(e) => setCatatanTeks(e.target.value)}
                     placeholder="Contoh: Warna kain biru Navy, kancing warna kontras hitam, benang jahit senada..."
+                    data-testid="order-notes"
                     className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
@@ -790,6 +794,7 @@ export default function PesanPage() {
                         checked={confirmed}
                         onChange={(e) => setConfirmed(e.target.checked)}
                         className="mt-0.5 accent-primary h-4 w-4"
+                        data-testid="confirm-design"
                       />
                       <label
                         htmlFor="confirm-design"
@@ -807,6 +812,7 @@ export default function PesanPage() {
                   onClick={handleCheckout}
                   disabled={totalQty <= 0 || (stockStatus !== null && !stockStatus.available)}
                   className="w-full py-6 text-sm font-bold tracking-wide shadow-md"
+                  data-testid="checkout-btn"
                 >
                   {!me ? 'Masuk untuk Checkout' : 'Checkout & Bayar DP'}
                 </Button>

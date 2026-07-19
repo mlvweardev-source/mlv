@@ -27,7 +27,7 @@ export function Topbar({ nama, role }: { nama: string; role: StaffRole }) {
           <p className="text-sm font-medium leading-tight">{nama}</p>
           <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleLogout}>
+        <Button variant="outline" size="sm" onClick={handleLogout} data-testid="admin-logout-btn">
           <LogOut className="h-4 w-4" />
           Logout
         </Button>

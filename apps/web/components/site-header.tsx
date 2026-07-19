@@ -61,6 +61,7 @@ export function SiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 className={cn(
                   'text-sm transition-colors hover:text-foreground',
                   pathname === item.href ? 'font-medium text-foreground' : 'text-muted-foreground',
@@ -77,12 +78,21 @@ export function SiteHeader() {
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 Halo, <span className="font-medium text-foreground">{me.nama}</span>
               </span>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                data-testid="customer-logout-btn"
+              >
                 Keluar
               </Button>
             </>
           ) : (
-            <Button size="sm" onClick={() => router.push('/login')}>
+            <Button
+              size="sm"
+              onClick={() => router.push('/login')}
+              data-testid="customer-login-btn"
+            >
               Masuk
             </Button>
           )}

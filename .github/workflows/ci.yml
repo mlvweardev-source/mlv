@@ -75,3 +75,27 @@ jobs:
 
       - name: Integration Test
         run: pnpm --filter @mlv/api test:e2e
+
+      - name: E2E Cypress Test
+        run: |
+          # Start services in background
+          pnpm --filter @mlv/api start:prod &
+          API_PID=$!
+          pnpm --filter @mlv/web start &
+          WEB_PID=$!
+          pnpm --filter @mlv/admin start &
+          ADMIN_PID=$!
+          
+          # Wait for services to be ready
+          sleep 15
+          
+          # Run Cypress tests
+          pnpm cypress run --browser electron || CYPRESS_EXIT=$?
+          
+          # Cleanup
+          kill $API_PID $WEB_PID $ADMIN_PID 2>/dev/null || true
+          exit ${CYPRESS_EXIT:-0}
+        env:
+          CYPRESS_API_URL: http://localhost:3000
+          CYPRESS_WEB_URL: http://localhost:4000
+          CYPRESS_ADMIN_URL: http://localhost:4001

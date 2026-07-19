@@ -67,6 +67,7 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="username"
+              data-testid="admin-email-input"
             />
           </div>
           <div className="space-y-1.5">
@@ -80,6 +81,7 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              data-testid="admin-password-input"
             />
           </div>
           {error && (
@@ -87,7 +89,7 @@ function LoginForm() {
               {error}
             </p>
           )}
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading} data-testid="admin-login-btn">
             {loading ? 'Memproses…' : 'Masuk'}
           </Button>
         </form>

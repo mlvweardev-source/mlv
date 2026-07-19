@@ -17,6 +17,8 @@ export default defineConfig({
     screenshotOnRunFailure: true,
     env: {
       API_URL: 'http://localhost:3000',
+      WEB_URL: 'http://localhost:4000',
+      ADMIN_URL: 'http://localhost:4001',
     },
   },
 });

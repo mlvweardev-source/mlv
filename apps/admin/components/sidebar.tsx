@@ -62,6 +62,7 @@ export function Sidebar({ role }: { role: StaffRole }) {
             <Link
               key={item.href}
               href={item.href}
+              data-testid={`sidebar-${item.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 active

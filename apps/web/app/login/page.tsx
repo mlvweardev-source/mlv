@@ -142,9 +142,15 @@ function LoginForm() {
                 onChange={(e) => setPhone(e.target.value)}
                 required
                 autoComplete="tel"
+                data-testid="customer-phone-input"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+              data-testid="request-otp-btn"
+            >
               {loading ? 'Mengirim…' : 'Kirim Kode OTP'}
             </Button>
           </form>
@@ -169,9 +175,15 @@ function LoginForm() {
                 onChange={(e) => setCode(e.target.value)}
                 required
                 autoComplete="one-time-code"
+                data-testid="customer-otp-input"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+              data-testid="verify-otp-btn"
+            >
               {loading ? 'Memeriksa…' : 'Verifikasi & Masuk'}
             </Button>
             <Button
