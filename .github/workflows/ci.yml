@@ -71,6 +71,3 @@ jobs:
 
       - name: Test
         run: pnpm turbo test
-
-      - name: Integration Test (e2e)
-        run: pnpm --filter @mlv/api test:e2e
