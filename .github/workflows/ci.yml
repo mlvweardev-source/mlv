@@ -81,17 +81,19 @@ jobs:
 
       - name: E2E Cypress Test
         run: |
-          # Start services in background with proper env
+          # Start API in background
           DATABASE_URL="${DATABASE_URL}" REDIS_HOST=localhost REDIS_PORT=6379 \
             JWT_SECRET="${JWT_SECRET}" \
             pnpm --filter @mlv/api start &
           API_PID=$!
           
-          NEXT_PUBLIC_API_URL=http://localhost:3000 \
+          # Start web on port 4000 (Next.js respects PORT env var)
+          PORT=4000 NEXT_PUBLIC_API_URL=http://localhost:3000 \
             pnpm --filter @mlv/web start &
           WEB_PID=$!
           
-          NEXT_PUBLIC_API_URL=http://localhost:3000 \
+          # Start admin on port 4001
+          PORT=4001 NEXT_PUBLIC_API_URL=http://localhost:3000 \
             pnpm --filter @mlv/admin start &
           ADMIN_PID=$!
           
@@ -100,18 +102,21 @@ jobs:
             curl -sf http://localhost:3000/health && break
             sleep 2
           done
+          echo "API ready"
           
           # Wait for web to be ready
           for i in $(seq 1 20); do
             curl -sf http://localhost:4000 && break
             sleep 2
           done
+          echo "Web ready"
           
           # Wait for admin to be ready
           for i in $(seq 1 20); do
             curl -sf http://localhost:4001 && break
             sleep 2
           done
+          echo "Admin ready"
           
           # Run Cypress tests
           pnpm cypress run --browser electron || CYPRESS_EXIT=$?
