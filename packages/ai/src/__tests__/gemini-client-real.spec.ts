@@ -51,9 +51,12 @@ describe('GeminiClient (Real API)', () => {
     expect(typeof result.text).toBe('string');
     // Some models may return empty for overly terse prompts — verify API was called
     // by checking usage metadata or non-empty text
-    const gotResponse = result.text.length > 0 || (result.usage && result.usage.totalTokenCount > 0);
+    const gotResponse =
+      result.text.length > 0 || (result.usage && result.usage.totalTokenCount > 0);
     expect(gotResponse).toBe(true);
-    console.log(`✅ Gemini API response: "${result.text.trim()}" (usage: ${result.usage?.totalTokenCount ?? 'N/A'})`);
+    console.log(
+      `✅ Gemini API response: "${result.text.trim()}" (usage: ${result.usage?.totalTokenCount ?? 'N/A'})`,
+    );
   }, 30_000);
 
   it('should return valid JSON from design analyzer prompt', async () => {
