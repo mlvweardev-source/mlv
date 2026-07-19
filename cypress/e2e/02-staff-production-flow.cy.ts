@@ -33,7 +33,7 @@ describe('Flow 2: Staff Production End-to-End', () => {
           method: 'POST',
           url: `${API}/orders/${orderId}/items`,
           headers: { Authorization: `Bearer ${ownerToken}` },
-          body: { productType: 'Kaos', basePriceSnapshot: 85000, sizes: [{ ukuran: 'M', qty: 5 }] },
+          body: { productType: 'Kaos', basePriceSnapshot: 85000, sizes: [{ ukuran: 'M', qty: 1 }] },
         });
       })
       .then((itemRes) => {

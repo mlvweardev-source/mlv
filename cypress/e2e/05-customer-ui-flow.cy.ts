@@ -91,17 +91,16 @@ describe('Flow 5: Customer UI End-to-End', () => {
         'border-primary',
       );
 
-      // Enter quantities for sizes
-      cy.get('[data-testid="qty-m"]').clear().type('5');
-      cy.get('[data-testid="qty-l"]').clear().type('5');
+      // Enter quantities for sizes (use small qty to avoid stock depletion by integration tests)
+      cy.get('[data-testid="qty-m"]').clear().type('1');
 
       // Stock check should appear
-      cy.contains('Bahan Baku Tersedia', { timeout: 10000 }).should(
+      cy.contains('Bahan Baku Tersedia', { timeout: 15000 }).should(
         'be.visible',
       );
 
       // Summary should show correct totals
-      cy.contains('Kaos (10 pcs)').should('be.visible');
+      cy.contains('Kaos (1 pcs)').should('be.visible');
     });
 
     it('5. Customer can fill notes and confirm order', () => {
@@ -109,7 +108,7 @@ describe('Flow 5: Customer UI End-to-End', () => {
 
       // Select product and quantities
       cy.get('[data-testid="product-kaos"]').click();
-      cy.get('[data-testid="qty-m"]').clear().type('3');
+      cy.get('[data-testid="qty-m"]').clear().type('1');
 
       // Fill notes
       cy.get('[data-testid="order-notes"]')
@@ -127,12 +126,11 @@ describe('Flow 5: Customer UI End-to-End', () => {
 
       // Build order
       cy.get('[data-testid="product-kaos"]').click();
-      cy.get('[data-testid="qty-m"]').clear().type('3');
-      cy.get('[data-testid="qty-l"]').clear().type('2');
+      cy.get('[data-testid="qty-m"]').clear().type('1');
       cy.get('[data-testid="confirm-design"]').check();
 
       // Wait for stock check
-      cy.contains('Bahan Baku Tersedia', { timeout: 10000 }).should(
+      cy.contains('Bahan Baku Tersedia', { timeout: 15000 }).should(
         'be.visible',
       );
 

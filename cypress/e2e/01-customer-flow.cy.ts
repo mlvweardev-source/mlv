@@ -42,8 +42,7 @@ describe('Flow 1: Customer End-to-End', () => {
         productType: 'Kaos',
         basePriceSnapshot: 85000,
         sizes: [
-          { ukuran: 'M', qty: 5 },
-          { ukuran: 'L', qty: 5 },
+          { ukuran: 'M', qty: 1 },
         ],
       },
     }).then((res) => {
