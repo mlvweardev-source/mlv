@@ -8,12 +8,15 @@
     "lint": "eslint . && turbo run lint",
     "format": "prettier --write .",
     "test": "turbo run test",
+    "test:e2e": "cypress run",
+    "cypress:open": "cypress open",
     "db:generate": "pnpm --filter @mlv/db db:generate",
     "db:migrate": "pnpm --filter @mlv/db db:migrate",
     "db:push": "pnpm --filter @mlv/db db:push"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "cypress": "^15.18.1",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
