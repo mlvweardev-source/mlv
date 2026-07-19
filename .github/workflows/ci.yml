@@ -77,6 +77,9 @@ jobs:
       - name: Integration Test
         run: pnpm --filter @mlv/api test:e2e
 
+      - name: Re-seed Database (restore stock after integration tests)
+        run: pnpm --filter @mlv/db db:seed
+
       - name: Install Cypress Binary
         run: pnpm cypress install
 
