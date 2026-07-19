@@ -1734,6 +1734,56 @@ export class OrderService {
     };
   }
 
+  /**
+   * Ambil konteks order lengkap untuk AI Customer Support (internal use only).
+   *
+   * Data yang dikembalikan (status, items, timeline) adalah yang dibutuhkan
+   * CustomerChatService untuk membangun payload ke ai-gateway. Items sudah
+   * aggregate qty dari semua ukuran supaya AI tidak perlu kalkulasi.
+   *
+   * Beda dengan `getOrderById(orderId, actor)` (endpoint publik):
+   * - getOrderById → endpoint publik, return DTO lengkap + apply access rules
+   * - getOrderContextForAi → internal call, return data minimal siap-konsumsi AI
+   *   TANPA melakukan access check (caller — CustomerChatService — sudah
+   *   validateAccess() di awal request, dengan ownership check dll).
+   *
+   * DDD §4.1: Caller TIDAK BOLEH query `prisma.order.findUnique` sendiri
+   * untuk konteks ini.
+   *
+   * @returns null kalau order tidak ada
+   */
+  async getOrderContextForAi(orderId: string): Promise<{
+    orderNumber: string;
+    status: string;
+    items: Array<{ productType: string; qty: number; basePriceSnapshot: number }>;
+    timeline: Array<{ tipeEvent: string; deskripsi: string; createdAt: string }>;
+  } | null> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { sizes: true } },
+        timeline: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+
+    if (!order) return null;
+
+    return {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      items: order.items.map((item) => ({
+        productType: item.productType,
+        qty: item.sizes.reduce((sum, s) => sum + s.qty, 0),
+        basePriceSnapshot: item.basePriceSnapshot,
+      })),
+      timeline: order.timeline.map((t) => ({
+        tipeEvent: t.tipeEvent,
+        deskripsi: t.deskripsi,
+        createdAt: t.createdAt.toISOString(),
+      })),
+    };
+  }
+
   // ==========================================
   // Helpers
   // ==========================================

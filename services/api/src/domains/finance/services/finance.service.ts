@@ -371,6 +371,80 @@ export class FinanceService {
     });
   }
 
+  // ==========================================
+  // Cross-Domain: Internal Read Methods (DDD Boundary §4.1)
+  // ==========================================
+  //
+  // Method `get*ForOrder(orderId)` di-export untuk dipanggil domain lain
+  // dalam SATU proses (services/api). Domain lain (CustomerChat, dll)
+  // TIDAK BOLEH query langsung ke tabel payments / invoices — harus
+  // lewat sini.
+  //
+  // Nama "ForInternal" / suffix "ForOrder" = penanda jelas bahwa method
+  // ini BUKAN endpoint publik dan BUKAN untuk dipanggil via HTTP.
+  // Dipakai di Fase 12 Bagian 2 (CustomerChatService butuh konteks
+  // pembayaran/pengiriman untuk AI auto-reply).
+
+  /**
+   * Ambil data payment untuk satu order (internal use only).
+   *
+   * Beda dengan `findPayments(orderId, actor)`:
+   * - findPayments → endpoint publik, ada RBAC check, include order
+   * - getPaymentsForOrder → internal call antar service di SATU proses,
+   *   return data minimal yang dibutuhkan caller, tanpa RBAC
+   *   (pengecekan akses sudah dilakukan caller — CustomerChatService
+   *   sudah validateAccess() di awal).
+   *
+   * DDD §4.1: Caller TIDAK BOLEH query `prisma.payment.findMany` sendiri.
+   */
+  async getPaymentsForOrder(orderId: string): Promise<
+    Array<{
+      id: string;
+      jenis: string;
+      jumlah: number;
+      status: string;
+      createdAt: Date;
+    }>
+  > {
+    return prisma.payment.findMany({
+      where: { orderId },
+      select: {
+        id: true,
+        jenis: true,
+        jumlah: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Ambil data invoice untuk satu order (internal use only).
+   *
+   * Lihat `getPaymentsForOrder` untuk penjelasan kenapa ini method terpisah
+   * dari `findInvoices(orderId, actor)`.
+   */
+  async getInvoicesForOrder(orderId: string): Promise<
+    Array<{
+      id: string;
+      jenis: string;
+      jumlah: number;
+      status: string;
+    }>
+  > {
+    return prisma.invoice.findMany({
+      where: { orderId },
+      select: {
+        id: true,
+        jenis: true,
+        jumlah: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   /**
    * GET /invoices/:id
    */

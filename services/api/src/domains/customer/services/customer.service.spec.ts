@@ -10,6 +10,7 @@ jest.mock('@mlv/db', () => ({
   prisma: {
     customer: {
       findUnique: jest.fn(),
+      findMany: jest.fn(), // Fase 12 Bagian 2: getCustomersByIdsInternal
       update: jest.fn(),
     },
     order: {
@@ -158,6 +159,50 @@ describe('CustomerService', () => {
           actor,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  /**
+   * Fase 12 Bagian 2 (koreksi DDD §4.1):
+   * getCustomersByIdsInternal = method batch untuk caller lintas domain
+   * yang butuh resolve banyak nama customer sekaligus (anti N+1).
+   * Pola sama dengan getUsersByIdsInternal di AuthService.
+   */
+  describe('getCustomersByIdsInternal (Fase 12 Bagian 2 — cross-domain batch)', () => {
+    it('should return Map keyed by customerId with id+nama', async () => {
+      (prismaMock.customer.findMany as jest.Mock).mockResolvedValue([
+        { id: 'cust-1', nama: 'Andi' },
+        { id: 'cust-2', nama: 'Budi' },
+      ]);
+
+      const result = await service.getCustomersByIdsInternal(['cust-1', 'cust-2']);
+
+      expect(prismaMock.customer.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['cust-1', 'cust-2'] } },
+        select: { id: true, nama: true },
+      });
+      expect(result.get('cust-1')?.nama).toBe('Andi');
+      expect(result.get('cust-2')?.nama).toBe('Budi');
+      expect(result.size).toBe(2);
+    });
+
+    it('should return empty Map when no ids given', async () => {
+      const result = await service.getCustomersByIdsInternal([]);
+      expect(result.size).toBe(0);
+      expect(prismaMock.customer.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should silently skip customers that do not exist', async () => {
+      (prismaMock.customer.findMany as jest.Mock).mockResolvedValue([
+        { id: 'cust-1', nama: 'Andi' },
+        // cust-2 not in result — e.g. deleted account
+      ]);
+
+      const result = await service.getCustomersByIdsInternal(['cust-1', 'cust-2']);
+
+      expect(result.size).toBe(1);
+      expect(result.get('cust-1')?.nama).toBe('Andi');
+      expect(result.has('cust-2')).toBe(false);
     });
   });
 });

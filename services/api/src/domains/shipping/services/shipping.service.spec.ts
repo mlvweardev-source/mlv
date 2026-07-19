@@ -24,6 +24,7 @@ jest.mock('@mlv/db', () => ({
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(), // Fase 12 Bagian 2: getShipmentForOrder
       update: jest.fn(),
     },
   },
@@ -399,6 +400,78 @@ describe('ShippingService (Unit)', () => {
         const result = await service.publicTracking('token-abc');
         expect(result.status).toBe(tc.label);
       }
+    });
+  });
+
+  /**
+   * Fase 12 Bagian 2 (koreksi DDD §4.1):
+   * getShipmentForOrder = method internal untuk CustomerChatService bangun
+   * konteks AI auto-reply. Beda dengan endpoint publik getShipmentById:
+   * - lookup by orderId (bukan shipmentId)
+   * - return null (bukan throw) kalau belum ada shipment
+   * - return field minimal siap-konsumsi (tanpa trackingToken, biayaKirim, dll)
+   */
+  describe('getShipmentForOrder (Fase 12 Bagian 2 — cross-domain internal)', () => {
+    it('should return shipment fields when one exists for the order', async () => {
+      (prisma.shipment.findFirst as jest.Mock).mockResolvedValue({
+        id: 'ship-1',
+        orderId: 'order-1',
+        kurir: 'JNE',
+        noResi: 'JNE123456',
+        status: 'DIKIRIM',
+        alamatPengiriman: 'Jl. Test',
+        biayaKirim: 15000,
+        trackingToken: 'uuid-tracking',
+        shippedAt: new Date('2026-07-19T08:00:00Z'),
+        deliveredAt: null,
+        createdAt: new Date('2026-07-19'),
+        updatedAt: new Date('2026-07-19'),
+      });
+
+      const result = await service.getShipmentForOrder('order-1');
+
+      expect(prisma.shipment.findFirst).toHaveBeenCalledWith({
+        where: { orderId: 'order-1' },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual({
+        id: 'ship-1',
+        kurir: 'JNE',
+        noResi: 'JNE123456',
+        status: 'DIKIRIM',
+        shippedAt: new Date('2026-07-19T08:00:00Z'),
+        deliveredAt: null,
+      });
+    });
+
+    it('should return null when no shipment exists (not throw)', async () => {
+      (prisma.shipment.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.getShipmentForOrder('order-no-shipment');
+
+      expect(result).toBeNull();
+    });
+
+    it('should NOT include sensitive fields (trackingToken, biayaKirim, alamatPengiriman, customerId)', async () => {
+      (prisma.shipment.findFirst as jest.Mock).mockResolvedValue({
+        id: 'ship-1',
+        orderId: 'order-1',
+        kurir: 'JNE',
+        noResi: 'JNE123456',
+        status: 'DIKIRIM',
+        alamatPengiriman: 'Jl. Test',
+        biayaKirim: 15000,
+        trackingToken: 'uuid-tracking',
+        shippedAt: new Date(),
+        deliveredAt: null,
+      });
+
+      const result = await service.getShipmentForOrder('order-1');
+
+      expect(result).not.toHaveProperty('trackingToken');
+      expect(result).not.toHaveProperty('biayaKirim');
+      expect(result).not.toHaveProperty('alamatPengiriman');
+      expect(result).not.toHaveProperty('orderId');
     });
   });
 });

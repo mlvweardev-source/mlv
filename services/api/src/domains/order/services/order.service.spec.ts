@@ -825,6 +825,105 @@ describe('OrderService', () => {
     });
   });
 
+  /**
+   * Fase 12 Bagian 2 (koreksi DDD §4.1):
+   * getOrderContextForAi = method internal untuk CustomerChatService bangun
+   * konteks AI auto-reply. Return { orderNumber, status, items, timeline }
+   * siap-konsumsi (items sudah aggregate qty).
+   */
+  describe('getOrderContextForAi (Fase 12 Bagian 2 — cross-domain internal)', () => {
+    it('should return order context with items (aggregated qty) and timeline for AI', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'MLV-20260719-0001',
+        status: 'ANTREAN',
+        items: [
+          {
+            id: 'item-1',
+            productType: 'Kaos',
+            basePriceSnapshot: 85000,
+            sizes: [{ qty: 30 }, { qty: 20 }],
+          },
+        ],
+        timeline: [
+          {
+            tipeEvent: 'DIBUAT',
+            deskripsi: 'Order dibuat',
+            createdAt: new Date('2026-07-19T10:00:00Z'),
+          },
+          {
+            tipeEvent: 'CHECKOUT',
+            deskripsi: 'Checkout berhasil',
+            createdAt: new Date('2026-07-19T10:05:00Z'),
+          },
+        ],
+      });
+
+      const result = await service.getOrderContextForAi('order-1');
+
+      expect(prisma.order.findUnique).toHaveBeenCalledWith({
+        where: { id: 'order-1' },
+        include: {
+          items: { include: { sizes: true } },
+          timeline: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+      expect(result).toEqual({
+        orderNumber: 'MLV-20260719-0001',
+        status: 'ANTREAN',
+        items: [{ productType: 'Kaos', qty: 50, basePriceSnapshot: 85000 }],
+        timeline: [
+          {
+            tipeEvent: 'DIBUAT',
+            deskripsi: 'Order dibuat',
+            createdAt: '2026-07-19T10:00:00.000Z',
+          },
+          {
+            tipeEvent: 'CHECKOUT',
+            deskripsi: 'Checkout berhasil',
+            createdAt: '2026-07-19T10:05:00.000Z',
+          },
+        ],
+      });
+    });
+
+    it('should return null if order not found', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+      const result = await service.getOrderContextForAi('nonexistent');
+      expect(result).toBeNull();
+    });
+
+    it('should aggregate qty across multiple sizes correctly', async () => {
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'MLV-X',
+        status: 'DRAFT',
+        items: [
+          {
+            id: 'item-1',
+            productType: 'Kaos',
+            basePriceSnapshot: 85000,
+            sizes: [{ qty: 10 }, { qty: 20 }, { qty: 30 }],
+          },
+          {
+            id: 'item-2',
+            productType: 'Tas',
+            basePriceSnapshot: 60000,
+            sizes: [{ qty: 5 }],
+          },
+        ],
+        timeline: [],
+      });
+
+      const result = await service.getOrderContextForAi('order-1');
+
+      expect(result?.items).toEqual([
+        { productType: 'Kaos', qty: 60, basePriceSnapshot: 85000 },
+        { productType: 'Tas', qty: 5, basePriceSnapshot: 60000 },
+      ]);
+    });
+  });
+
   describe('handlePaymentExpired', () => {
     const expiredEvent = {
       paymentId: 'payment-1',

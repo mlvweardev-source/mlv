@@ -4,6 +4,9 @@ import { ActorType, UserRole } from '@mlv/auth';
 import type { JwtPayload } from '@mlv/auth';
 import { AuthService } from '../../domains/identity-access/services/auth.service';
 import { CustomerService } from '../../domains/customer/services/customer.service';
+import { OrderService } from '../../domains/order/services/order.service';
+import { FinanceService } from '../../domains/finance/services/finance.service';
+import { ShippingService } from '../../domains/shipping/services/shipping.service';
 import { AiAssistantService } from '../../domains/order/services/ai-assistant.service';
 
 /** Tipe pengirim pesan — mirror enum CustomerChatSenderType di Prisma. */
@@ -44,6 +47,26 @@ interface AiSupportContext {
   } | null;
 }
 
+/**
+ * CustomerChatService (Fase 10.4 + Fase 12 Bagian 2)
+ *
+ * Beda DARI CustomerChat biasa (apps/web) yang saat ini bebas query
+ * prisma langsung — di sini karena CustomerChat dipakai juga untuk
+ * integrasi AI auto-reply yang butuh konteks LINTAS DOMAIN (Order +
+ * Finance + Shipping), kita TEGAKKAN DDD boundary §4.1: SEMUA akses
+ * data order (items, timeline) lewat OrderService, data payment/invoice
+ * lewat FinanceService, data shipment lewat ShippingService.
+ *
+ * CustomerChatService TIDAK query langsung ke tabel orders / payments
+ * / invoices / shipments / customers (kecuali tabel chat sendiri).
+ * Pengecualian: query ke `customerChatThread` & `customerChatMessage`
+ * di method `getOrCreateThread` & `sendMessage` — itu tabel milik
+ * domain ini sendiri (cross-cutting chat infrastructure, §6.8).
+ *
+ * Beda dengan aturan Notification (Fase 8) yang query lintas PROSES —
+ * di sini query lintas DOMAIN dalam SATU proses. Aturannya: panggil
+ * service method, bukan prisma langsung.
+ */
 @Injectable()
 export class CustomerChatService {
   private readonly logger = new Logger(CustomerChatService.name);
@@ -54,6 +77,9 @@ export class CustomerChatService {
   constructor(
     private readonly authService: AuthService,
     private readonly customerService: CustomerService,
+    private readonly orderService: OrderService,
+    private readonly financeService: FinanceService,
+    private readonly shippingService: ShippingService,
     private readonly aiAssistantService: AiAssistantService,
   ) {}
 
@@ -66,6 +92,10 @@ export class CustomerChatService {
    * Controller sudah pakai @Roles(OWNER, MANAJER_PRODUKSI) + @AllowCustomer,
    * tapi cek di sini sebagai defense-in-depth sekaligus ownership check customer.
    *
+   * Pakai OrderService.getOrderByIdInternal() untuk data customerId —
+   * sesuai DDD §4.1 (CustomerChatService TIDAK query prisma.order langsung
+   * untuk validasi ownership).
+   *
    * @throws ForbiddenException jika tidak punya akses
    * @throws NotFoundException jika order tidak ditemukan
    */
@@ -77,10 +107,8 @@ export class CustomerChatService {
       );
     }
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, customerId: true },
-    });
+    // DDD §4.1: ambil data order via OrderService, bukan prisma langsung
+    const order = await this.orderService.getOrderByIdInternal(orderId);
     if (!order) {
       throw new NotFoundException('Order tidak ditemukan');
     }
@@ -93,8 +121,13 @@ export class CustomerChatService {
 
   /**
    * Ambil thread (buat jika belum ada) + pesan dengan nama pengirim.
-   *customerId di-resolve dari order (sumber kebenaran), bukan dari token
+   * customerId di-resolve dari order (sumber kebenaran), bukan dari token
    * pelanggan — supaya thread yang dibuka staf tetap terikat ke customer pemilik order.
+   *
+   * Pakai OrderService.getOrderByIdInternal() untuk ambil data order minimal
+   * (id, customerId, orderNumber). TIDAK query prisma.order langsung.
+   * customerChatThread/customerChatMessage diakses langsung karena tabel
+   * milik domain ini sendiri (§6.8 cross-cutting chat infrastructure).
    */
   async getOrCreateThread(orderId: string): Promise<{
     id: string;
@@ -104,10 +137,7 @@ export class CustomerChatService {
     messages: ChatMessageDto[];
     createdAt: Date;
   }> {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, customerId: true, orderNumber: true },
-    });
+    const order = await this.orderService.getOrderByIdInternal(orderId);
     if (!order) {
       throw new NotFoundException('Order tidak ditemukan');
     }
@@ -134,11 +164,10 @@ export class CustomerChatService {
 
     const namaMap = new Map<string, string>();
     if (customerIds.size > 0) {
-      const customers = await prisma.customer.findMany({
-        where: { id: { in: [...customerIds] } },
-        select: { id: true, nama: true },
-      });
-      for (const c of customers) namaMap.set(c.id, c.nama);
+      // DDD §4.1: batch resolve via CustomerService (pola sama dengan
+      // getUsersByIdsInternal di AuthService), bukan prisma.customer langsung
+      const customers = await this.customerService.getCustomersByIdsInternal([...customerIds]);
+      for (const [id, c] of customers) namaMap.set(id, c.nama);
     }
     if (staffIds.size > 0) {
       const staff = await this.authService.getUsersByIdsInternal([...staffIds]);
@@ -173,10 +202,8 @@ export class CustomerChatService {
    * Kalau tidak, biarkan pesan masuk — staf akan balas manual seperti biasa.
    */
   async sendMessage(orderId: string, user: JwtPayload, pesan: string): Promise<ChatMessageDto> {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, customerId: true },
-    });
+    // DDD §4.1: ambil data order via OrderService
+    const order = await this.orderService.getOrderByIdInternal(orderId);
     if (!order) {
       throw new NotFoundException('Order tidak ditemukan');
     }
@@ -228,8 +255,9 @@ export class CustomerChatService {
    * Try AI auto-reply untuk pesan dari customer (§9, Fase 12 Bagian 2).
    *
    * Alur:
-   * 1. Kumpulkan konteks order lengkap (status, items, timeline, payments,
-   *    shipment) — semua lewat Prisma langsung, TIDAK query domain lain.
+   * 1. Kumpulkan konteks order lengkap via SERVICE METHOD domain masing-masing
+   *    (DDD §4.1) — OrderService untuk order+items+timeline,
+   *    FinanceService untuk payments+invoices, ShippingService untuk shipment.
    * 2. Panggil AI gateway (lewat AiAssistantService) dengan konteks.
    * 3. Kalau canAnswer=true → post balasan sbg ai_bot + push SSE.
    * 4. Kalau canAnswer=false → tidak post apa-apa (eskalasi, staf balas manual).
@@ -244,7 +272,7 @@ export class CustomerChatService {
     customerId: string,
   ): Promise<void> {
     try {
-      // 1. Kumpulkan konteks order
+      // 1. Kumpulkan konteks order via service method (DDD §4.1)
       const ctx = await this.buildAiSupportContext(orderId);
       if (!ctx) return; // order sudah tidak ada (race condition)
 
@@ -307,56 +335,54 @@ export class CustomerChatService {
 
   /**
    * Bangun konteks order lengkap untuk AI Customer Support.
-   * Mengumpulkan data dari DB langsung (paritas Fase 8: payload lengkap
-   * di sisi publisher, ai-gateway tidak query balik).
+   *
+   * DDD §4.1: SEMUA data lintas domain diakses via service method:
+   * - OrderService.getOrderContextForAi() → items + timeline + status
+   * - FinanceService.getPaymentsForOrder() → payments
+   * - FinanceService.getInvoicesForOrder() → invoices
+   * - ShippingService.getShipmentForOrder() → shipment
+   *
+   * CustomerChatService TIDAK query langsung ke tabel orders / payments /
+   * invoices / shipments. Ini aturan cross-DOMAIN dalam SATU proses —
+   * BUKA aturan cross-PROSES seperti Notification (Fase 8).
    */
   private async buildAiSupportContext(orderId: string): Promise<AiSupportContext | null> {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: { include: { sizes: true } },
-        timeline: { orderBy: { createdAt: 'asc' } },
-        payments: { orderBy: { createdAt: 'asc' } },
-        invoices: { orderBy: { createdAt: 'asc' } },
-        shipments: { take: 1, orderBy: { createdAt: 'desc' } },
-      },
-    });
+    // 1. Order + items + timeline via OrderService
+    const orderCtx = await this.orderService.getOrderContextForAi(orderId);
+    if (!orderCtx) return null;
 
-    if (!order) return null;
+    // 2. Payments via FinanceService
+    const payments = await this.financeService.getPaymentsForOrder(orderId);
+    // 3. Invoices via FinanceService
+    const invoices = await this.financeService.getInvoicesForOrder(orderId);
+    // 4. Shipment via ShippingService (null kalau belum ada)
+    const shipment = await this.shippingService.getShipmentForOrder(orderId);
 
     return {
-      orderNumber: order.orderNumber,
-      status: order.status,
-      items: order.items.map((item) => ({
-        productType: item.productType,
-        qty: item.sizes.reduce((sum, s) => sum + s.qty, 0),
-        basePriceSnapshot: item.basePriceSnapshot,
-      })),
-      timeline: order.timeline.map((t) => ({
-        tipeEvent: t.tipeEvent,
-        deskripsi: t.deskripsi,
-        createdAt: t.createdAt.toISOString(),
-      })),
-      payments: order.payments
-        .filter((p) => p.status === 'SUCCESS') // hanya yg sukses yang relevan
+      orderNumber: orderCtx.orderNumber,
+      status: orderCtx.status,
+      items: orderCtx.items,
+      timeline: orderCtx.timeline,
+      payments: payments
+        .filter((p) => p.status === 'SUCCESS') // hanya yg sukses yang relevan untuk AI
         .map((p) => ({
           jenis: p.jenis as 'DP' | 'PELUNASAN',
           jumlah: p.jumlah,
           status: p.status,
           createdAt: p.createdAt.toISOString(),
         })),
-      invoices: order.invoices.map((i) => ({
+      invoices: invoices.map((i) => ({
         jenis: i.jenis as 'DP' | 'PELUNASAN',
         jumlah: i.jumlah,
         status: i.status,
       })),
-      shipment: order.shipments[0]
+      shipment: shipment
         ? {
-            kurir: order.shipments[0].kurir,
-            noResi: order.shipments[0].noResi,
-            status: order.shipments[0].status,
-            shippedAt: order.shipments[0].shippedAt?.toISOString() ?? null,
-            deliveredAt: order.shipments[0].deliveredAt?.toISOString() ?? null,
+            kurir: shipment.kurir,
+            noResi: shipment.noResi,
+            status: shipment.status,
+            shippedAt: shipment.shippedAt?.toISOString() ?? null,
+            deliveredAt: shipment.deliveredAt?.toISOString() ?? null,
           }
         : null,
     };

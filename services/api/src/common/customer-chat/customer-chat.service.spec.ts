@@ -5,17 +5,17 @@ import type { JwtPayload } from '@mlv/auth';
 import { CustomerChatService } from './customer-chat.service';
 import { AuthService } from '../../domains/identity-access/services/auth.service';
 import { CustomerService } from '../../domains/customer/services/customer.service';
+import { OrderService } from '../../domains/order/services/order.service';
+import { FinanceService } from '../../domains/finance/services/finance.service';
+import { ShippingService } from '../../domains/shipping/services/shipping.service';
 import { AiAssistantService } from '../../domains/order/services/ai-assistant.service';
 
-// Mock prisma
+// Mock prisma — HANYA tabel milik domain ini sendiri (customerChatThread,
+// customerChatMessage). TIDAK ada prisma.order / prisma.customer / prisma.payment
+// / prisma.invoice / prisma.shipment karena CustomerChatService sekarang panggil
+// service method masing-masing domain (DDD §4.1, koreksi Fase 12 Bagian 2).
 jest.mock('@mlv/db', () => ({
   prisma: {
-    order: {
-      findUnique: jest.fn(),
-    },
-    customer: {
-      findMany: jest.fn(),
-    },
     customerChatThread: {
       upsert: jest.fn(),
     },
@@ -56,9 +56,23 @@ const PENJAHIT: JwtPayload = {
 
 describe('CustomerChatService — RBAC & Sender Type', () => {
   let service: CustomerChatService;
+  let mockOrderService: { getOrderByIdInternal: jest.Mock };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    mockOrderService = {
+      // Fase 12 Bagian 2 (koreksi DDD §4.1): query ownership check
+      // lewat OrderService, bukan prisma langsung
+      getOrderByIdInternal: jest.fn().mockResolvedValue({
+        id: 'order-1',
+        customerId: 'cust-a',
+        status: 'ANTREAN',
+        orderNumber: 'MLV-20260719-0001',
+        alamat: null,
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CustomerChatService,
@@ -71,7 +85,29 @@ describe('CustomerChatService — RBAC & Sender Type', () => {
         },
         {
           provide: CustomerService,
-          useValue: { getCustomerByIdInternal: jest.fn().mockResolvedValue(null) },
+          useValue: {
+            getCustomerByIdInternal: jest.fn().mockResolvedValue(null),
+            getCustomersByIdsInternal: jest.fn().mockResolvedValue(new Map()),
+          },
+        },
+        {
+          provide: OrderService,
+          useValue: mockOrderService,
+        },
+        {
+          // Fase 12 Bagian 2: FinanceService di-inject — default no-op
+          provide: FinanceService,
+          useValue: {
+            getPaymentsForOrder: jest.fn().mockResolvedValue([]),
+            getInvoicesForOrder: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          // Fase 12 Bagian 2: ShippingService di-inject — default no-op
+          provide: ShippingService,
+          useValue: {
+            getShipmentForOrder: jest.fn().mockResolvedValue(null),
+          },
         },
         {
           // Fase 12 Bagian 2: AI assistant service di-inject tapi
@@ -86,17 +122,25 @@ describe('CustomerChatService — RBAC & Sender Type', () => {
 
   describe('validateAccess', () => {
     it('should allow customer A to access own order thread', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+      mockOrderService.getOrderByIdInternal.mockResolvedValue({
         id: 'order-1',
         customerId: 'cust-a',
+        status: 'ANTREAN',
+        orderNumber: 'MLV-20260719-0001',
+        alamat: null,
       });
       await expect(service.validateAccess('order-1', CUSTOMER_A)).resolves.toBeUndefined();
+      // DDD §4.1: akses via OrderService, bukan prisma langsung
+      expect(mockOrderService.getOrderByIdInternal).toHaveBeenCalledWith('order-1');
     });
 
     it('should deny customer B from accessing customer A order thread (403)', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+      mockOrderService.getOrderByIdInternal.mockResolvedValue({
         id: 'order-1',
         customerId: 'cust-a',
+        status: 'ANTREAN',
+        orderNumber: 'MLV-20260719-0001',
+        alamat: null,
       });
       await expect(service.validateAccess('order-1', CUSTOMER_B)).rejects.toThrow(
         ForbiddenException,
@@ -104,21 +148,24 @@ describe('CustomerChatService — RBAC & Sender Type', () => {
     });
 
     it('should allow Owner staff to access any order thread', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+      mockOrderService.getOrderByIdInternal.mockResolvedValue({
         id: 'order-1',
         customerId: 'cust-a',
+        status: 'ANTREAN',
+        orderNumber: 'MLV-20260719-0001',
+        alamat: null,
       });
       await expect(service.validateAccess('order-1', OWNER)).resolves.toBeUndefined();
     });
 
     it('should deny Tim Penjahit access to Customer Chat (defense-in-depth)', async () => {
       await expect(service.validateAccess('order-1', PENJAHIT)).rejects.toThrow(ForbiddenException);
-      // Even if order exists, penjahit must be rejected without DB lookup
-      expect(prisma.order.findUnique).not.toHaveBeenCalled();
+      // Penjahit ditolak tanpa lookup — OrderService TIDAK dipanggil
+      expect(mockOrderService.getOrderByIdInternal).not.toHaveBeenCalled();
     });
 
     it('should throw NotFound when order does not exist', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+      mockOrderService.getOrderByIdInternal.mockResolvedValue(null);
       await expect(service.validateAccess('order-x', CUSTOMER_A)).rejects.toThrow(
         NotFoundException,
       );
@@ -127,9 +174,12 @@ describe('CustomerChatService — RBAC & Sender Type', () => {
 
   describe('sendMessage — senderType derivation', () => {
     beforeEach(() => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+      mockOrderService.getOrderByIdInternal.mockResolvedValue({
         id: 'order-1',
         customerId: 'cust-a',
+        status: 'ANTREAN',
+        orderNumber: 'MLV-20260719-0001',
+        alamat: null,
       });
       (prisma.customerChatThread.upsert as jest.Mock).mockResolvedValue({
         id: 'thread-1',

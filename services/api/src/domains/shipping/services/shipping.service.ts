@@ -210,6 +210,53 @@ export class ShippingService {
   }
 
   // ==========================================
+  // Cross-Domain: Internal Read Method (DDD Boundary §4.1)
+  // ==========================================
+  //
+  // Beda dengan `getShipmentById(id)` (endpoint publik) — `getShipmentForOrder`
+  // untuk dipanggil domain lain dalam SATU proses (services/api).
+  //
+  // DDD §4.1: Caller (mis. CustomerChatService untuk konteks AI auto-reply)
+  // TIDAK BOLEH query `prisma.shipment.findFirst` sendiri — harus lewat sini.
+  // 1 order = max 1 shipment (keputusan Fase 7, unique constraint).
+  // Return null kalau belum ada shipment — caller bisa handle.
+
+  /**
+   * Ambil shipment untuk satu order (internal use only).
+   *
+   * Beda dengan `getShipmentById(shipmentId)`:
+   * - getShipmentById → endpoint publik via /shipments/:id, lookup by id
+   * - getShipmentForOrder → internal call antar service, lookup by orderId,
+   *   return null (bukan throw) kalau belum ada shipment
+   *
+   * @returns Shipment milik order tsb, atau null kalau belum ada
+   */
+  async getShipmentForOrder(orderId: string): Promise<{
+    id: string;
+    kurir: string;
+    noResi: string | null;
+    status: string;
+    shippedAt: Date | null;
+    deliveredAt: Date | null;
+  } | null> {
+    const shipment = await prisma.shipment.findFirst({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!shipment) return null;
+
+    return {
+      id: shipment.id,
+      kurir: shipment.kurir,
+      noResi: shipment.noResi,
+      status: shipment.status,
+      shippedAt: shipment.shippedAt,
+      deliveredAt: shipment.deliveredAt,
+    };
+  }
+
+  // ==========================================
   // Public Tracking (§8 — via token unik)
   // ==========================================
 

@@ -183,6 +183,29 @@ export class CustomerService {
     return customer;
   }
 
+  /**
+   * Ambil data banyak customer sekaligus (internal use only, batch).
+   *
+   * Dipakai CustomerChatService untuk resolve banyak nama pengirim sekaligus
+   * (anti N+1) — pola sama dengan `getUsersByIdsInternal` di AuthService.
+   *
+   * DDD §4.1: Caller TIDAK BOLEH query `prisma.customer.findMany` sendiri.
+   *
+   * @returns Map keyed by customerId; customer yang tidak ada di-skip
+   */
+  async getCustomersByIdsInternal(
+    customerIds: string[],
+  ): Promise<Map<string, { id: string; nama: string }>> {
+    if (customerIds.length === 0) return new Map();
+
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      select: { id: true, nama: true },
+    });
+
+    return new Map(customers.map((c) => [c.id, { id: c.id, nama: c.nama }]));
+  }
+
   // =====================
   // Access Control Helper
   // =====================

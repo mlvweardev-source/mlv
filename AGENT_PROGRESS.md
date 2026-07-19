@@ -91,3 +91,52 @@ ull, tidak pernah blocking. Rate limiter reusable untuk layanan AI berikutnya. S
 - ✅ 0 failure(s)
 
 **CI hijau setelah perbaikan**: run [29668885758](https://github.com/mlvweardev-source/mlv/actions/runs/29668885758) commit 2e06201. 19 suites, 192/192 pass (packages/ai: 13, ai-gateway: 7, api: 172).
+
+## Koreksi Review Fase 12 Bagian 2 (2026-07-19) — DDD boundary + klarifikasi cross-PROCESS vs cross-DOMAIN
+
+**2 masalah koreksi ditegakkan sebelum lanjut ke Bagian 3:**
+
+### 1. CustomerChatService query lintas domain via Prisma langsung — MELANGGAR DDD §4.1
+
+CustomerChatService.buildAiSupportContext() sebelumnya query `prisma.order.findUnique` (dengan include payments/invoices/shipments) — ini query lintas domain dalam SATU proses lewat Prisma langsung, bukan service method. FinanceService dan ShippingService TIDAK berada di proses terpisah seperti Notification — mereka di `services/api` yang sama, jadi aturan yang berlaku adalah **DDD §4.1 (cross-DOMAIN)**, BUKAN aturan Fase 8 (cross-PROCESS).
+
+**Perbaikan**: ditambah 4 method `get*ForOrder` di service domain (pola sama dengan `getOrderByIdInternal` & `getOrderIdsForAssignee` yang sudah ada sejak Fase 3/4/5):
+- `OrderService.getOrderContextForAi(orderId)` → items + timeline (untuk AI)
+- `OrderService.getOrderByIdInternal(orderId)` → existing, dipakai untuk ownership check
+- `FinanceService.getPaymentsForOrder(orderId)` → payments
+- `FinanceService.getInvoicesForOrder(orderId)` → invoices
+- `ShippingService.getShipmentForOrder(orderId)` → shipment (return null kalau belum ada)
+- `CustomerService.getCustomersByIdsInternal(ids[])` → batch resolve nama customer (pola sama `getUsersByIdsInternal`)
+
+CustomerChatService sekarang:
+- `validateAccess()` → `orderService.getOrderByIdInternal()`
+- `getOrCreateThread()` → `orderService.getOrderByIdInternal()` + `customerService.getCustomersByIdsInternal()`
+- `sendMessage()` → `orderService.getOrderByIdInternal()`
+- `buildAiSupportContext()` → `orderService.getOrderContextForAi()` + `financeService.getPaymentsForOrder()` + `financeService.getInvoicesForOrder()` + `shippingService.getShipmentForOrder()`
+
+Pengecualian: tabel `customerChatThread` & `customerChatMessage` tetap diakses via Prisma langsung karena itu tabel milik CustomerChat domain sendiri (§6.8 cross-cutting chat infrastructure). `prisma.customer.findMany` dihapus — diganti `customerService.getCustomersByIdsInternal()`.
+
+**Verifikasi**: `grep "prisma\.\(order\|payment\|invoice\|shipment\)\."` di `customer-chat.service.ts` = **0 hasil** (sebelumnya: 4 hits). CustomerChatModule imports `FinanceModule` & `ShippingModule` untuk inject service. Tests: `customer-chat.service.spec.ts` mock untuk `prisma.order.findUnique` dihapus; tambah mock untuk `OrderService.getOrderByIdInternal` (validateAccess, getOrCreateThread, sendMessage) + `FinanceService`/`ShippingService`/`CustomerService.getCustomersByIdsInternal`.
+
+### 2. Klaim "paritas Fase 8" di entry 12.2 — KELIRU, perlu klarifikasi
+
+Klaim "ai-gateway TIDAK query balik, paritas prinsip Fase 8 bahwa event payload harus lengkap di publisher" menyesatkan. Fase 8 berbicara tentang **lintas PROSES** (Notification di proses terpisah via BullMQ + Redis). Yang terjadi di CustomerChatService adalah **lintas DOMAIN dalam SATU proses** — aturan yang berbeda.
+
+**Aturan yang benar (direvisi, jangan rujuk klaim 12.2 lama):**
+
+| Skenario | Aturan | Mekanisme |
+|----------|--------|-----------|
+| **Lintas PROSES** (Notification, dll — proses terpisah via BullMQ/Redis) | Payload event harus LENGKAP di sisi publisher (Fase 8). Subscriber TIDAK query balik ke domain publisher. | EventBusService.publish() dengan payload komplet |
+| **Lintas DOMAIN dalam SATU proses** (Order↔Inventory, CustomerChat↔Order/Finance/Shipping — semua di services/api) | Pakai SERVICE METHOD, BUKAN Prisma langsung (DDD §4.1). | Inject service lain, panggil `domainService.getXForY()` |
+
+**Aplikasi konkret di Fase 12:**
+- `ai-gateway` (proses terpisah) — payload AI context lengkap di sisi publisher (`services/api` kumpulkan via service method, kirim ke `ai-gateway` via HTTP). ai-gateway TIDAK query balik ke services/api. (Ini memang paralel dengan prinsip Fase 8, TAPI bukan "paritas" — ini karena ai-gateway memang proses terpisah, sama logikanya dengan Notification.)
+- `CustomerChatService` (di services/api, satu proses dengan Order/Finance/Shipping) — panggil service method masing-masing domain. TIDAK query Prisma langsung ke tabel domain lain.
+
+**Ringkasan untuk fase berikutnya**:
+- Mau panggil data dari domain lain? Cek dulu: satu proses atau proses terpisah?
+- Satu proses → inject service, panggil method, BUKAN prisma langsung.
+- Proses terpisah → lengkapi payload di publisher (Fase 8).
+- Jangan klaim "paritas Fase 8" untuk cross-DOMAIN — itu aturan berbeda, walaupun kelihatannya mirip.
+
+**Tests setelah koreksi**: 20 suites, 190/190 pass (3 baru: `finance.internal.spec.ts` 4 tests, `customer.service.spec.ts` 3 tests, `shipping.service.spec.ts` 3 tests untuk method internal). Total naik dari 187 → 190.
