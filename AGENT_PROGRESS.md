@@ -140,3 +140,5 @@ Klaim "ai-gateway TIDAK query balik, paritas prinsip Fase 8 bahwa event payload 
 - Jangan klaim "paritas Fase 8" untuk cross-DOMAIN — itu aturan berbeda, walaupun kelihatannya mirip.
 
 **Tests setelah koreksi**: 20 suites, 190/190 pass (3 baru: `finance.internal.spec.ts` 4 tests, `customer.service.spec.ts` 3 tests, `shipping.service.spec.ts` 3 tests untuk method internal). Total naik dari 187 → 190.
+
+**CI hijau setelah koreksi**: run [29673417845](https://github.com/mlvweardev-source/mlv/actions/runs/29673417845) commit d63cdee — 3m 41s, 0 errors, 11 warnings (semua pre-existing Fase 5 technical debt).
