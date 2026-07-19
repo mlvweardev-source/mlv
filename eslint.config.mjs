@@ -27,6 +27,7 @@ export default tseslint.config(
       '**/next-env.d.ts',
       '.agents/**',
       'docs/**',
+      'cypress/**',
     ],
   },
   eslintConfigPrettier,

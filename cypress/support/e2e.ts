@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
+
 const API_URL = Cypress.env('API_URL') || 'http://localhost:3000';
 
 /**
@@ -29,7 +31,6 @@ Cypress.Commands.add('loginAsStaff', (email: string, password: string) => {
 
 /**
  * Login as customer by generating token via Cypress task.
- * Bypasses OTP since we can't receive real WhatsApp in tests.
  */
 Cypress.Commands.add('loginAsCustomer', (customerId: string) => {
   cy.task<string>('getCustomerToken', customerId).then((token) => {
@@ -41,14 +42,5 @@ Cypress.Commands.add('loginAsCustomer', (customerId: string) => {
     });
   });
 });
-
-declare global {
-  namespace Cypress {
-    interface Chainable {
-      loginAsStaff(email: string, password: string): Chainable<void>;
-      loginAsCustomer(customerId: string): Chainable<void>;
-    }
-  }
-}
 
 export {};
