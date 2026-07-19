@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -280,7 +281,6 @@ describe('FinanceService — Comprehensive Tests', () => {
     });
 
     it('should ignore duplicate webhook (idempotency)', async () => {
-      const crypto = require('crypto');
       const serverKey = 'server-key';
       const payload = {
         order_id: 'payment_pay-1',
@@ -308,7 +308,6 @@ describe('FinanceService — Comprehensive Tests', () => {
     });
 
     it('should process settlement webhook and publish PaymentSucceeded', async () => {
-      const crypto = require('crypto');
       const serverKey = 'server-key';
       const payload = {
         order_id: 'payment_pay-1',
