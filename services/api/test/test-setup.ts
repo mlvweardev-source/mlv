@@ -8,9 +8,20 @@ import * as dotenv from 'dotenv';
 import { join } from 'path';
 
 // Load env from monorepo root
-dotenv.config({ path: join(__dirname, '../../../.env') });
+try {
+  dotenv.config({ path: join(__dirname, '../../../.env') });
+} catch {
+  // .env file may not exist in CI — env vars are set directly
+}
 
-const TEST_JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-integration';
+// Ensure critical env vars are set (fallback for CI)
+if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-secret-for-e2e';
+if (!process.env.DATABASE_URL)
+  process.env.DATABASE_URL = 'postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public';
+if (!process.env.REDIS_HOST) process.env.REDIS_HOST = 'localhost';
+if (!process.env.REDIS_PORT) process.env.REDIS_PORT = '6379';
+
+const TEST_JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Bootstrap a NestJS application for integration testing.
