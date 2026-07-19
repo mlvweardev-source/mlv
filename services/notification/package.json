@@ -57,6 +57,11 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "./src/dispatcher/dispatcher.service.ts": {
+        "lines": 15
+      }
+    }
   }
 }

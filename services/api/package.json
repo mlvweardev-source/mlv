@@ -83,6 +83,32 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "./src/domains/finance/services/finance.service.ts": {
+        "lines": 80
+      },
+      "./src/domains/inventory/services/inventory.service.ts": {
+        "lines": 65
+      },
+      "./src/domains/order/services/order.service.ts": {
+        "lines": 50
+      },
+      "./src/domains/production/services/production.service.ts": {
+        "lines": 60
+      },
+      "./src/domains/customer/services/customer.service.ts": {
+        "lines": 60
+      },
+      "./src/domains/shipping/services/shipping.service.ts": {
+        "lines": 60
+      },
+      "./src/domains/analytics/analytics.service.ts": {
+        "lines": 60
+      },
+      "./src/domains/identity-access/services/auth.service.ts": {
+        "lines": 60
+      }
+    },
     "testEnvironment": "node"
   }
 }
