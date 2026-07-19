@@ -1,9 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FinanceService } from './finance.service';
 import { OrderService } from '../../order/services/order.service';
@@ -137,7 +133,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.createPayment({ orderId: 'nonexistent', jenis: 'DP', metode: 'midtrans_snap' } as any, actorOwner),
+        service.createPayment(
+          { orderId: 'nonexistent', jenis: 'DP', metode: 'midtrans_snap' } as any,
+          actorOwner,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -148,7 +147,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       });
 
       await expect(
-        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any, actorCustomer),
+        service.createPayment(
+          { orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any,
+          actorCustomer,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -159,7 +161,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       });
 
       await expect(
-        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any, actorOwner),
+        service.createPayment(
+          { orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any,
+          actorOwner,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -170,7 +175,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       });
 
       await expect(
-        service.createPayment({ orderId: 'order-1', jenis: 'PELUNASAN', metode: 'midtrans_snap' } as any, actorOwner),
+        service.createPayment(
+          { orderId: 'order-1', jenis: 'PELUNASAN', metode: 'midtrans_snap' } as any,
+          actorOwner,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -179,7 +187,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       mockCustomerService.getCustomerByIdInternal.mockResolvedValue({ nama: 'Test' });
 
       await expect(
-        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any, actorOwner),
+        service.createPayment(
+          { orderId: 'order-1', jenis: 'DP', metode: 'midtrans_snap' } as any,
+          actorOwner,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -220,7 +231,8 @@ describe('FinanceService — Comprehensive Tests', () => {
       // Mock fetch for Midtrans Snap call
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ token: 'snap-token', redirect_url: 'https://midtrans.com/pay' }),
+        json: () =>
+          Promise.resolve({ token: 'snap-token', redirect_url: 'https://midtrans.com/pay' }),
       });
 
       const result = await service.createPayment(
@@ -241,7 +253,10 @@ describe('FinanceService — Comprehensive Tests', () => {
       mockCustomerService.getCustomerByIdInternal.mockResolvedValue({ nama: 'Test' });
 
       await expect(
-        service.createPayment({ orderId: 'order-1', jenis: 'DP', metode: 'manual', jumlah: 0 } as any, actorOwner),
+        service.createPayment(
+          { orderId: 'order-1', jenis: 'DP', metode: 'manual', jumlah: 0 } as any,
+          actorOwner,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -323,7 +338,8 @@ describe('FinanceService — Comprehensive Tests', () => {
       // Mock findFirst for idempotency (null) then for payment lookup
       (prisma.payment.findFirst as jest.Mock)
         .mockResolvedValueOnce(null) // idempotency check
-        .mockResolvedValueOnce({    // payment lookup
+        .mockResolvedValueOnce({
+          // payment lookup
           id: 'pay-1',
           orderId: 'order-1',
           jenis: 'DP',
@@ -634,11 +650,7 @@ describe('FinanceService — Comprehensive Tests', () => {
       mockAuthService.getUserByIdInternal.mockResolvedValue({ nama: 'Owner' });
       mockOrderService.reissueInvoice.mockResolvedValue(undefined);
 
-      await service.decideApproval(
-        'approval-3',
-        { status: 'APPROVED' } as any,
-        actorOwner,
-      );
+      await service.decideApproval('approval-3', { status: 'APPROVED' } as any, actorOwner);
 
       expect(mockOrderService.reissueInvoice).toHaveBeenCalledWith('inv-1');
     });
@@ -696,15 +708,18 @@ describe('FinanceService — Comprehensive Tests', () => {
   // ==========================================
   describe('createProfitSharing', () => {
     it('should throw ForbiddenException for non-Owner', async () => {
-      await expect(
-        service.createProfitSharing({} as any, actorManajer),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.createProfitSharing({} as any, actorManajer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should create profit sharing for Owner', async () => {
       (prisma.profitSharing.create as jest.Mock).mockResolvedValue({ id: 'ps-1' });
 
-      const result = await service.createProfitSharing({ pihak: 'Test', persen: 10 } as any, actorOwner);
+      const result = await service.createProfitSharing(
+        { pihak: 'Test', persen: 10 } as any,
+        actorOwner,
+      );
       expect(result.id).toBe('ps-1');
     });
   });
@@ -724,9 +739,9 @@ describe('FinanceService — Comprehensive Tests', () => {
 
   describe('updateProfitSharing', () => {
     it('should throw ForbiddenException for non-Owner', async () => {
-      await expect(
-        service.updateProfitSharing('ps-1', {} as any, actorManajer),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.updateProfitSharing('ps-1', {} as any, actorManajer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw NotFoundException when not found', async () => {

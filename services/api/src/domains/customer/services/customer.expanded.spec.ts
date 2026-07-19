@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActorType, UserRole } from '@mlv/auth';
@@ -43,10 +48,7 @@ describe('CustomerService — Expanded Coverage', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CustomerService,
-        { provide: EventBusService, useValue: mockEventBus },
-      ],
+      providers: [CustomerService, { provide: EventBusService, useValue: mockEventBus }],
     }).compile();
 
     service = module.get<CustomerService>(CustomerService);
@@ -59,7 +61,10 @@ describe('CustomerService — Expanded Coverage', () => {
     });
 
     it('should allow staff to access any customer', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'Customer 1' });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Customer 1',
+      });
       const result = await service.findOne('cust-1', actorOwner);
       expect(result.id).toBe('cust-1');
     });
@@ -70,7 +75,10 @@ describe('CustomerService — Expanded Coverage', () => {
     });
 
     it('should allow customer to access own data', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'My Profile' });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'My Profile',
+      });
       const result = await service.findOne('cust-1', actorCustomer);
       expect(result.id).toBe('cust-1');
     });
@@ -79,11 +87,16 @@ describe('CustomerService — Expanded Coverage', () => {
   describe('update', () => {
     it('should deny customer updating another customer', async () => {
       (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-2' });
-      await expect(service.update('cust-2', { nama: 'New Name' }, actorCustomer)).rejects.toThrow(ForbiddenException);
+      await expect(service.update('cust-2', { nama: 'New Name' }, actorCustomer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should update customer and publish event', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'Old Name' });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Old Name',
+      });
       (prisma.customer.update as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'New Name' });
 
       const result = await service.update('cust-1', { nama: 'New Name' }, actorCustomer);
@@ -107,9 +120,19 @@ describe('CustomerService — Expanded Coverage', () => {
     });
 
     it('should return orders object for customer', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'Customer 1' });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Customer 1',
+      });
       (prisma.order.findMany as jest.Mock).mockResolvedValue([
-        { id: 'o-1', orderNumber: 'MLV-0001', status: 'DRAFT', deadline: null, createdAt: new Date(), _count: { items: 2 } },
+        {
+          id: 'o-1',
+          orderNumber: 'MLV-0001',
+          status: 'DRAFT',
+          deadline: null,
+          createdAt: new Date(),
+          _count: { items: 2 },
+        },
       ]);
 
       const result = await service.findOrders('cust-1', actorCustomer);
@@ -119,7 +142,10 @@ describe('CustomerService — Expanded Coverage', () => {
     });
 
     it('should allow staff to access any customer orders', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'Customer 1' });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Customer 1',
+      });
       (prisma.order.findMany as jest.Mock).mockResolvedValue([]);
 
       const result = await service.findOrders('cust-1', actorOwner);
@@ -131,29 +157,57 @@ describe('CustomerService — Expanded Coverage', () => {
     const reviewDto = { orderId: 'o-1', rating: 5, komentar: 'Great!' };
 
     it('should deny non-customer from creating review', async () => {
-      await expect(service.createReview('cust-1', reviewDto, actorOwner)).rejects.toThrow(ForbiddenException);
+      await expect(service.createReview('cust-1', reviewDto, actorOwner)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should deny customer reviewing another customer order', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', customerId: 'other-customer', status: 'DIKIRIM' });
-      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(ForbiddenException);
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        customerId: 'other-customer',
+        status: 'DIKIRIM',
+      });
+      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw when order is not DIKIRIM', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', customerId: 'cust-1', status: 'ANTREAN' });
-      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(BadRequestException);
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        customerId: 'cust-1',
+        status: 'ANTREAN',
+      });
+      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw ConflictException for duplicate review', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', customerId: 'cust-1', status: 'DIKIRIM' });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        customerId: 'cust-1',
+        status: 'DIKIRIM',
+      });
       (prisma.review.findFirst as jest.Mock).mockResolvedValue({ id: 'existing-review' });
-      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(ConflictException);
+      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should create review successfully', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', customerId: 'cust-1', status: 'DIKIRIM' });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        customerId: 'cust-1',
+        status: 'DIKIRIM',
+      });
       (prisma.review.findFirst as jest.Mock).mockResolvedValue(null);
-      (prisma.review.create as jest.Mock).mockResolvedValue({ id: 'review-1', rating: 5, komentar: 'Great!' });
+      (prisma.review.create as jest.Mock).mockResolvedValue({
+        id: 'review-1',
+        rating: 5,
+        komentar: 'Great!',
+      });
 
       const result = await service.createReview('cust-1', reviewDto, actorCustomer);
       expect(result.rating).toBe(5);
@@ -161,13 +215,20 @@ describe('CustomerService — Expanded Coverage', () => {
 
     it('should throw NotFoundException when customer not found (for customer actor)', async () => {
       (prisma.customer.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(NotFoundException);
+      await expect(service.createReview('cust-1', reviewDto, actorCustomer)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('getCustomerByIdInternal', () => {
     it('should return customer when found', async () => {
-      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({ id: 'cust-1', nama: 'Customer 1', noHp: '081234', email: null });
+      (prisma.customer.findUnique as jest.Mock).mockResolvedValue({
+        id: 'cust-1',
+        nama: 'Customer 1',
+        noHp: '081234',
+        email: null,
+      });
       const result = await service.getCustomerByIdInternal('cust-1');
       expect(result!.nama).toBe('Customer 1');
     });
@@ -210,8 +271,11 @@ describe('CustomerService — Expanded Coverage', () => {
 
     it('should calculate repeat customer rate', async () => {
       (prisma.order.findMany as jest.Mock).mockResolvedValue([
-        { customerId: 'c1' }, { customerId: 'c1' }, { customerId: 'c1' },
-        { customerId: 'c2' }, { customerId: 'c2' },
+        { customerId: 'c1' },
+        { customerId: 'c1' },
+        { customerId: 'c1' },
+        { customerId: 'c2' },
+        { customerId: 'c2' },
         { customerId: 'c3' },
       ]);
 

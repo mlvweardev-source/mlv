@@ -34,8 +34,16 @@ describe('ProductionService — Expanded Coverage', () => {
   let mockActivityLog: { log: jest.Mock };
 
   const actorOwner = { sub: 'owner-1', role: 'OWNER' as UserRole, actorType: ActorType.USER };
-  const actorManajer = { sub: 'mgr-1', role: 'MANAJER_PRODUKSI' as UserRole, actorType: ActorType.USER };
-  const actorPenjahit = { sub: 'pj-1', role: 'TIM_PENJAHIT' as UserRole, actorType: ActorType.USER };
+  const actorManajer = {
+    sub: 'mgr-1',
+    role: 'MANAJER_PRODUKSI' as UserRole,
+    actorType: ActorType.USER,
+  };
+  const actorPenjahit = {
+    sub: 'pj-1',
+    role: 'TIM_PENJAHIT' as UserRole,
+    actorType: ActorType.USER,
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -55,7 +63,9 @@ describe('ProductionService — Expanded Coverage', () => {
           provide: CustomerService,
           useValue: {
             getCustomerByIdInternal: jest.fn().mockResolvedValue({
-              id: 'cust-1', nama: 'Customer', noHp: '08123456789',
+              id: 'cust-1',
+              nama: 'Customer',
+              noHp: '08123456789',
             }),
           },
         },
@@ -74,16 +84,28 @@ describe('ProductionService — Expanded Coverage', () => {
     });
 
     it('should skip if order item already has tasks (idempotent)', async () => {
-      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([{ id: 'item-1', productType: 'KAOS', services: [] }]);
-      (prisma.productionRouting.findUnique as jest.Mock).mockResolvedValue({ id: 'r-1', productType: 'KAOS', urutanTask: ['CUTTING', 'SEWING'] });
+      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([
+        { id: 'item-1', productType: 'KAOS', services: [] },
+      ]);
+      (prisma.productionRouting.findUnique as jest.Mock).mockResolvedValue({
+        id: 'r-1',
+        productType: 'KAOS',
+        urutanTask: ['CUTTING', 'SEWING'],
+      });
       (prisma.productionTask.findFirst as jest.Mock).mockResolvedValue({ id: 'existing-task' });
       await service.handleOrderConfirmed('order-1', 'MLV-0001', 'cust-1');
       expect(prisma.productionTask.create).not.toHaveBeenCalled();
     });
 
     it('should set first task to DITERIMA and rest to MENUNGGU', async () => {
-      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([{ id: 'item-1', productType: 'KAOS', services: [] }]);
-      (prisma.productionRouting.findUnique as jest.Mock).mockResolvedValue({ id: 'r-1', productType: 'KAOS', urutanTask: ['CUTTING', 'SEWING', 'FINISHING'] });
+      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([
+        { id: 'item-1', productType: 'KAOS', services: [] },
+      ]);
+      (prisma.productionRouting.findUnique as jest.Mock).mockResolvedValue({
+        id: 'r-1',
+        productType: 'KAOS',
+        urutanTask: ['CUTTING', 'SEWING', 'FINISHING'],
+      });
       (prisma.productionTask.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.productionTask.create as jest.Mock).mockResolvedValue({ id: 'task-new' });
       (prisma.$transaction as jest.Mock).mockImplementation(async (cb: any) => cb(prisma));
@@ -97,7 +119,9 @@ describe('ProductionService — Expanded Coverage', () => {
     });
 
     it('should return early when routing not found', async () => {
-      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([{ id: 'item-1', productType: 'UNKNOWN', services: [] }]);
+      (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([
+        { id: 'item-1', productType: 'UNKNOWN', services: [] },
+      ]);
       (prisma.productionRouting.findUnique as jest.Mock).mockResolvedValue(null);
       await service.handleOrderConfirmed('order-1', 'MLV-0001', 'cust-1');
       expect(prisma.productionTask.create).not.toHaveBeenCalled();
@@ -106,23 +130,47 @@ describe('ProductionService — Expanded Coverage', () => {
 
   describe('assignTask', () => {
     it('should throw ForbiddenException for non-Owner/Manajer', async () => {
-      await expect(service.assignTask('task-1', { userId: 'pj-1' } as any, actorPenjahit)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.assignTask('task-1', { userId: 'pj-1' } as any, actorPenjahit),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw NotFoundException when target user not found', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.assignTask('task-1', { userId: 'nonexistent' } as any, actorOwner)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.assignTask('task-1', { userId: 'nonexistent' } as any, actorOwner),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when target user is not TIM_PENJAHIT', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', role: 'OWNER' });
-      await expect(service.assignTask('task-1', { userId: 'owner-1' } as any, actorOwner)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.assignTask('task-1', { userId: 'owner-1' } as any, actorOwner),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should assign task and publish event', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'pj-1', role: 'TIM_PENJAHIT', nama: 'Penjahit 1' });
-      (prisma.productionTask.update as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SEDANG_DILAKSANAKAN', orderItemId: 'item-1', taskType: 'SEWING', sequence: 1, startedAt: new Date() });
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', orderItemId: 'item-1', taskType: 'SEWING', sequence: 1, status: 'SEDANG_DILAKSANAKAN', orderItem: { orderId: 'order-1', order: { orderNumber: 'MLV-0001' } } });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'pj-1',
+        role: 'TIM_PENJAHIT',
+        nama: 'Penjahit 1',
+      });
+      (prisma.productionTask.update as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SEDANG_DILAKSANAKAN',
+        orderItemId: 'item-1',
+        taskType: 'SEWING',
+        sequence: 1,
+        startedAt: new Date(),
+      });
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        orderItemId: 'item-1',
+        taskType: 'SEWING',
+        sequence: 1,
+        status: 'SEDANG_DILAKSANAKAN',
+        orderItem: { orderId: 'order-1', order: { orderNumber: 'MLV-0001' } },
+      });
 
       await service.assignTask('task-1', { userId: 'pj-1' } as any, actorOwner);
       expect(mockEventBus.publish).toHaveBeenCalled();
@@ -133,33 +181,81 @@ describe('ProductionService — Expanded Coverage', () => {
   describe('updateTaskStatus - status validation', () => {
     it('should throw NotFoundException when task not found', async () => {
       (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.updateTaskStatus('nonexistent', { status: 'SELESAI' } as any, actorOwner)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.updateTaskStatus('nonexistent', { status: 'SELESAI' } as any, actorOwner),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should reject transition from SELESAI (terminal state)', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SELESAI', assignedTo: 'pj-1', orderItem: { orderId: 'o-1', order: {} } });
-      await expect(service.updateTaskStatus('task-1', { status: 'SEDANG_DILAKSANAKAN' } as any, actorOwner)).rejects.toThrow(BadRequestException);
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SELESAI',
+        assignedTo: 'pj-1',
+        orderItem: { orderId: 'o-1', order: {} },
+      });
+      await expect(
+        service.updateTaskStatus('task-1', { status: 'SEDANG_DILAKSANAKAN' } as any, actorOwner),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject MENUNGGU → SELESAI (must go through SEDANG_DILAKSANAKAN)', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'MENUNGGU', assignedTo: 'pj-1', orderItem: { orderId: 'o-1', order: {} } });
-      await expect(service.updateTaskStatus('task-1', { status: 'SELESAI' } as any, actorOwner)).rejects.toThrow(BadRequestException);
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'MENUNGGU',
+        assignedTo: 'pj-1',
+        orderItem: { orderId: 'o-1', order: {} },
+      });
+      await expect(
+        service.updateTaskStatus('task-1', { status: 'SELESAI' } as any, actorOwner),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should allow DITERIMA → SEDANG_DILAKSANAKAN', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', orderItemId: 'item-1', taskType: 'CUTTING', sequence: 1, status: 'DITERIMA', assignedTo: 'pj-1', orderItem: { orderId: 'o-1', order: { orderNumber: 'MLV-0001' } } });
-      (prisma.productionTask.update as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SEDANG_DILAKSANAKAN' });
-      await service.updateTaskStatus('task-1', { status: 'SEDANG_DILAKSANAKAN' } as any, actorOwner);
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        orderItemId: 'item-1',
+        taskType: 'CUTTING',
+        sequence: 1,
+        status: 'DITERIMA',
+        assignedTo: 'pj-1',
+        orderItem: { orderId: 'o-1', order: { orderNumber: 'MLV-0001' } },
+      });
+      (prisma.productionTask.update as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SEDANG_DILAKSANAKAN',
+      });
+      await service.updateTaskStatus(
+        'task-1',
+        { status: 'SEDANG_DILAKSANAKAN' } as any,
+        actorOwner,
+      );
       expect(prisma.productionTask.update).toHaveBeenCalled();
     });
 
     it('should allow DITERIMA → SELESAI', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', orderItemId: 'item-1', taskType: 'CUTTING', sequence: 1, status: 'DITERIMA', assignedTo: 'pj-1', orderItem: { orderId: 'o-1', order: { orderNumber: 'MLV-0001' } } });
-      (prisma.productionTask.update as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SELESAI', completedAt: new Date() });
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        orderItemId: 'item-1',
+        taskType: 'CUTTING',
+        sequence: 1,
+        status: 'DITERIMA',
+        assignedTo: 'pj-1',
+        orderItem: { orderId: 'o-1', order: { orderNumber: 'MLV-0001' } },
+      });
+      (prisma.productionTask.update as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SELESAI',
+        completedAt: new Date(),
+      });
       (prisma.productionTask.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.productionTask.count as jest.Mock).mockResolvedValue(0);
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', orderNumber: 'MLV-0001', customerId: 'c-1', items: [{ id: 'item-1' }] });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        customerId: 'c-1',
+        items: [{ id: 'item-1' }],
+      });
       (prisma.orderItem.findMany as jest.Mock).mockResolvedValue([{ id: 'item-1' }]);
 
       await service.updateTaskStatus('task-1', { status: 'SELESAI' } as any, actorOwner);
@@ -210,7 +306,9 @@ describe('ProductionService — Expanded Coverage', () => {
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([
         { orderItemId: 'item-1', status: 'SELESAI' },
       ]);
-      await expect(service.assertDesignRevisionAllowed('item-1')).rejects.toThrow(BadRequestException);
+      await expect(service.assertDesignRevisionAllowed('item-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should pass when cutting has not started (no cutting task)', async () => {
@@ -228,7 +326,9 @@ describe('ProductionService — Expanded Coverage', () => {
 
   describe('getTasks', () => {
     it('should return tasks with default filters', async () => {
-      (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([{ id: 'task-1', taskType: 'CUTTING', status: 'DITERIMA', orderItem: {} }]);
+      (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([
+        { id: 'task-1', taskType: 'CUTTING', status: 'DITERIMA', orderItem: {} },
+      ]);
       const result = await service.getTasks({});
       expect(result).toHaveLength(1);
     });
@@ -236,24 +336,41 @@ describe('ProductionService — Expanded Coverage', () => {
     it('should filter by status', async () => {
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([]);
       await service.getTasks({ status: 'SELESAI' });
-      expect(prisma.productionTask.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ status: 'SELESAI' }) }));
+      expect(prisma.productionTask.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'SELESAI' }) }),
+      );
     });
   });
 
   describe('setQcStatus', () => {
     it('should throw NotFoundException when task not found', async () => {
       (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.setQcStatus('nonexistent', { qcStatus: 'PASS' } as any, actorOwner)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.setQcStatus('nonexistent', { qcStatus: 'PASS' } as any, actorOwner),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when task is not SELESAI', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SEDANG_DILAKSANAKAN', orderItem: {} });
-      await expect(service.setQcStatus('task-1', { qcStatus: 'PASS' } as any, actorOwner)).rejects.toThrow(BadRequestException);
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SEDANG_DILAKSANAKAN',
+        orderItem: {},
+      });
+      await expect(
+        service.setQcStatus('task-1', { qcStatus: 'PASS' } as any, actorOwner),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should set QC status for completed task', async () => {
-      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({ id: 'task-1', status: 'SELESAI', orderItem: {} });
-      (prisma.productionTask.update as jest.Mock).mockResolvedValue({ id: 'task-1', qcStatus: 'PASS' });
+      (prisma.productionTask.findUnique as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        status: 'SELESAI',
+        orderItem: {},
+      });
+      (prisma.productionTask.update as jest.Mock).mockResolvedValue({
+        id: 'task-1',
+        qcStatus: 'PASS',
+      });
       const result = await service.setQcStatus('task-1', { qcStatus: 'PASS' } as any, actorOwner);
       expect(result.qcStatus).toBe('PASS');
     });
@@ -270,8 +387,20 @@ describe('ProductionService — Expanded Coverage', () => {
       const startedAt = new Date('2026-07-01T08:00:00Z');
       const completedAt = new Date('2026-07-02T08:00:00Z'); // 24 hours
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([
-        { orderItemId: 'item-1', sequence: 1, startedAt, completedAt, orderItem: { orderId: 'o-1' } },
-        { orderItemId: 'item-2', sequence: 1, startedAt, completedAt, orderItem: { orderId: 'o-2' } },
+        {
+          orderItemId: 'item-1',
+          sequence: 1,
+          startedAt,
+          completedAt,
+          orderItem: { orderId: 'o-1' },
+        },
+        {
+          orderItemId: 'item-2',
+          sequence: 1,
+          startedAt,
+          completedAt,
+          orderItem: { orderId: 'o-2' },
+        },
       ]);
 
       const result = await service.getAverageLeadTime(new Date(), new Date());
@@ -339,10 +468,27 @@ describe('ProductionService — Expanded Coverage', () => {
     });
 
     it('should return production context with tasks', async () => {
-      mockOrderService.getOrderByIdInternal.mockResolvedValue({ orderNumber: 'MLV-0001', status: 'ANTREAN' });
+      mockOrderService.getOrderByIdInternal.mockResolvedValue({
+        orderNumber: 'MLV-0001',
+        status: 'ANTREAN',
+      });
       (prisma.productionTask.findMany as jest.Mock).mockResolvedValue([
-        { taskType: 'CUTTING', sequence: 1, status: 'SELESAI', assignedTo: 'pj-1', startedAt: new Date(), orderItem: { productType: 'Kaos' } },
-        { taskType: 'SEWING', sequence: 2, status: 'SEDANG_DILAKSANAKAN', assignedTo: 'pj-2', startedAt: new Date(), orderItem: { productType: 'Kaos' } },
+        {
+          taskType: 'CUTTING',
+          sequence: 1,
+          status: 'SELESAI',
+          assignedTo: 'pj-1',
+          startedAt: new Date(),
+          orderItem: { productType: 'Kaos' },
+        },
+        {
+          taskType: 'SEWING',
+          sequence: 2,
+          status: 'SEDANG_DILAKSANAKAN',
+          assignedTo: 'pj-2',
+          startedAt: new Date(),
+          orderItem: { productType: 'Kaos' },
+        },
       ]);
       (prisma.user.findMany as jest.Mock).mockResolvedValue([
         { id: 'pj-1', nama: 'Penjahit 1' },

@@ -11,20 +11,29 @@ import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
 // Mock fetch
-global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503, text: () => Promise.resolve('') });
+global.fetch = jest
+  .fn()
+  .mockResolvedValue({ ok: false, status: 503, text: () => Promise.resolve('') });
 
 jest.mock('@mlv/db', () => ({
   prisma: {
     customer: { findUnique: jest.fn() },
     order: {
-      create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn(),
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
       aggregate: jest.fn(),
     },
     orderItem: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     orderDesign: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
     orderTimelineEvent: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     orderService: { create: jest.fn() },
-    orderMaterial: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn().mockResolvedValue({ id: 'om-1' }) },
+    orderMaterial: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      create: jest.fn().mockResolvedValue({ id: 'om-1' }),
+    },
     stockReservation: { findMany: jest.fn() },
     material: { findMany: jest.fn() },
     productPriceList: { findUnique: jest.fn() },
@@ -34,8 +43,11 @@ jest.mock('@mlv/db', () => ({
 }));
 
 const mockInventoryService = {
-  getBom: jest.fn(), reserveStock: jest.fn(), releaseStock: jest.fn(),
-  consumeReservationsForOrder: jest.fn(), releaseReservationsForOrder: jest.fn(),
+  getBom: jest.fn(),
+  reserveStock: jest.fn(),
+  releaseStock: jest.fn(),
+  consumeReservationsForOrder: jest.fn(),
+  releaseReservationsForOrder: jest.fn(),
 };
 const mockProductionService = {
   getOrderIdsForAssignee: jest.fn().mockResolvedValue([]),
@@ -44,7 +56,9 @@ const mockProductionService = {
 };
 const mockActivityLog = { log: jest.fn().mockResolvedValue(undefined) };
 const mockCustomerService = {
-  getCustomerByIdInternal: jest.fn().mockResolvedValue({ id: 'c-1', nama: 'Customer', noHp: '081234' }),
+  getCustomerByIdInternal: jest
+    .fn()
+    .mockResolvedValue({ id: 'c-1', nama: 'Customer', noHp: '081234' }),
   getCustomersByIdsInternal: jest.fn().mockResolvedValue(new Map()),
 };
 
@@ -66,7 +80,10 @@ describe('OrderService — Expanded Coverage', () => {
         { provide: InventoryService, useValue: mockInventoryService },
         { provide: ProductionService, useValue: mockProductionService },
         { provide: ActivityLogService, useValue: mockActivityLog },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') },
+        },
         { provide: CustomerService, useValue: mockCustomerService },
       ],
     }).compile();
@@ -77,13 +94,20 @@ describe('OrderService — Expanded Coverage', () => {
   describe('handlePaymentSucceeded', () => {
     it('should transition order to ANTREAN on DP payment', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', status: 'MENUNGGU_PEMBAYARAN_DP', customerId: 'c-1',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        status: 'MENUNGGU_PEMBAYARAN_DP',
+        customerId: 'c-1',
       });
       (prisma.order.update as jest.Mock).mockResolvedValue({ id: 'o-1', status: 'ANTREAN' });
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.handlePaymentSucceeded({
-        paymentId: 'pay-1', orderId: 'o-1', jenis: 'DP', jumlah: 425000, customerId: 'c-1',
+        paymentId: 'pay-1',
+        orderId: 'o-1',
+        jenis: 'DP',
+        jumlah: 425000,
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).toHaveBeenCalled();
@@ -91,13 +115,20 @@ describe('OrderService — Expanded Coverage', () => {
 
     it('should transition order to LUNAS on PELUNASAN payment', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', status: 'MENUNGGU_PELUNASAN', customerId: 'c-1',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        status: 'MENUNGGU_PELUNASAN',
+        customerId: 'c-1',
       });
       (prisma.order.update as jest.Mock).mockResolvedValue({ id: 'o-1', status: 'LUNAS' });
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.handlePaymentSucceeded({
-        paymentId: 'pay-2', orderId: 'o-1', jenis: 'PELUNASAN', jumlah: 425000, customerId: 'c-1',
+        paymentId: 'pay-2',
+        orderId: 'o-1',
+        jenis: 'PELUNASAN',
+        jumlah: 425000,
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).toHaveBeenCalled();
@@ -107,7 +138,11 @@ describe('OrderService — Expanded Coverage', () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
 
       await service.handlePaymentSucceeded({
-        paymentId: 'pay-1', orderId: 'nonexistent', jenis: 'DP', jumlah: 100000, customerId: 'c-1',
+        paymentId: 'pay-1',
+        orderId: 'nonexistent',
+        jenis: 'DP',
+        jumlah: 100000,
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).not.toHaveBeenCalled();
@@ -115,11 +150,17 @@ describe('OrderService — Expanded Coverage', () => {
 
     it('should skip if order status is already terminal', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', status: 'LUNAS', customerId: 'c-1',
+        id: 'o-1',
+        status: 'LUNAS',
+        customerId: 'c-1',
       });
 
       await service.handlePaymentSucceeded({
-        paymentId: 'pay-1', orderId: 'o-1', jenis: 'DP', jumlah: 100000, customerId: 'c-1',
+        paymentId: 'pay-1',
+        orderId: 'o-1',
+        jenis: 'DP',
+        jumlah: 100000,
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).not.toHaveBeenCalled();
@@ -129,13 +170,18 @@ describe('OrderService — Expanded Coverage', () => {
   describe('handlePaymentExpired', () => {
     it('should cancel order on payment expiry', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', status: 'MENUNGGU_PEMBAYARAN_DP', customerId: 'c-1',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        status: 'MENUNGGU_PEMBAYARAN_DP',
+        customerId: 'c-1',
       });
       (prisma.order.update as jest.Mock).mockResolvedValue({ id: 'o-1', status: 'DIBATALKAN' });
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.handlePaymentExpired({
-        orderId: 'o-1', orderNumber: 'MLV-0001', customerId: 'c-1',
+        orderId: 'o-1',
+        orderNumber: 'MLV-0001',
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).toHaveBeenCalled();
@@ -143,11 +189,15 @@ describe('OrderService — Expanded Coverage', () => {
 
     it('should skip if not in MENUNGGU_PEMBAYARAN_DP', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', status: 'ANTREAN', customerId: 'c-1',
+        id: 'o-1',
+        status: 'ANTREAN',
+        customerId: 'c-1',
       });
 
       await service.handlePaymentExpired({
-        orderId: 'o-1', orderNumber: 'MLV-0001', customerId: 'c-1',
+        orderId: 'o-1',
+        orderNumber: 'MLV-0001',
+        customerId: 'c-1',
       } as any);
 
       expect(prisma.order.update).not.toHaveBeenCalled();
@@ -157,13 +207,21 @@ describe('OrderService — Expanded Coverage', () => {
   describe('handleProductionCompleted', () => {
     it('should transition order to PRODUKSI_SELESAI', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', status: 'ANTREAN', customerId: 'c-1',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        status: 'ANTREAN',
+        customerId: 'c-1',
       });
-      (prisma.order.update as jest.Mock).mockResolvedValue({ id: 'o-1', status: 'PRODUKSI_SELESAI' });
+      (prisma.order.update as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        status: 'PRODUKSI_SELESAI',
+      });
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.handleProductionCompleted({
-        orderId: 'o-1', orderNumber: 'MLV-0001', completedAt: new Date(),
+        orderId: 'o-1',
+        orderNumber: 'MLV-0001',
+        completedAt: new Date(),
       } as any);
 
       expect(prisma.order.update).toHaveBeenCalled();
@@ -171,11 +229,15 @@ describe('OrderService — Expanded Coverage', () => {
 
     it('should skip if order is in terminal status', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', status: 'DIBATALKAN', customerId: 'c-1',
+        id: 'o-1',
+        status: 'DIBATALKAN',
+        customerId: 'c-1',
       });
 
       await service.handleProductionCompleted({
-        orderId: 'o-1', orderNumber: 'MLV-0001', completedAt: new Date(),
+        orderId: 'o-1',
+        orderNumber: 'MLV-0001',
+        completedAt: new Date(),
       } as any);
 
       expect(prisma.order.update).not.toHaveBeenCalled();
@@ -184,7 +246,10 @@ describe('OrderService — Expanded Coverage', () => {
 
   describe('overrideItemPrice', () => {
     it('should update item basePriceSnapshot', async () => {
-      (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({ id: 'item-1', basePriceSnapshot: 85000 });
+      (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({
+        id: 'item-1',
+        basePriceSnapshot: 85000,
+      });
       (prisma.orderItem.update as jest.Mock).mockResolvedValue({});
 
       await service.overrideItemPrice('item-1', 'Special price');
@@ -195,34 +260,46 @@ describe('OrderService — Expanded Coverage', () => {
 
   describe('applyDiscount', () => {
     it('should apply percentage discount', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', orderNumber: 'MLV-0001' });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+      });
       (prisma.order.update as jest.Mock).mockResolvedValue({});
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.applyDiscount('o-1', '10%');
 
-      expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ discountPersen: 10 }),
-      }));
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ discountPersen: 10 }),
+        }),
+      );
     });
 
     it('should apply nominal discount', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({ id: 'o-1', orderNumber: 'MLV-0001' });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+      });
       (prisma.order.update as jest.Mock).mockResolvedValue({});
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
 
       await service.applyDiscount('o-1', 'Rp 50.000');
 
-      expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ discountNominal: 50000 }),
-      }));
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ discountNominal: 50000 }),
+        }),
+      );
     });
   });
 
   describe('cancelOrderByFinance', () => {
     it('should cancel order', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', status: 'ANTREAN',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        status: 'ANTREAN',
       });
       (prisma.order.update as jest.Mock).mockResolvedValue({});
       (prisma.orderTimelineEvent.create as jest.Mock).mockResolvedValue({});
@@ -247,7 +324,9 @@ describe('OrderService — Expanded Coverage', () => {
   describe('getOrderByIdInternal', () => {
     it('should return order when found', async () => {
       (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'o-1', orderNumber: 'MLV-0001', customerId: 'c-1',
+        id: 'o-1',
+        orderNumber: 'MLV-0001',
+        customerId: 'c-1',
         customer: { alamat: 'Jakarta' },
         items: [],
       });

@@ -24,10 +24,7 @@ describe('GoogleAuthService', () => {
       get: jest.fn().mockReturnValue(clientId),
     };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        GoogleAuthService,
-        { provide: ConfigService, useValue: mockConfig },
-      ],
+      providers: [GoogleAuthService, { provide: ConfigService, useValue: mockConfig }],
     }).compile();
     return module.get<GoogleAuthService>(GoogleAuthService);
   }
@@ -53,9 +50,7 @@ describe('GoogleAuthService', () => {
       service = await createService('real-client-id');
       mockVerifyIdToken.mockRejectedValue(new Error('Token expired'));
 
-      await expect(service.verifyIdToken('expired-token')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.verifyIdToken('expired-token')).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when payload has no sub', async () => {
@@ -64,9 +59,7 @@ describe('GoogleAuthService', () => {
         getPayload: () => ({ email: 'test@gmail.com' }),
       });
 
-      await expect(service.verifyIdToken('token-no-sub')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.verifyIdToken('token-no-sub')).rejects.toThrow(UnauthorizedException);
     });
 
     it('should return GoogleIdentity on successful verification', async () => {
@@ -132,9 +125,7 @@ describe('GoogleAuthService', () => {
       service = await createService('real-client-id');
       mockVerifyIdToken.mockRejectedValue('string error');
 
-      await expect(service.verifyIdToken('bad-token')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.verifyIdToken('bad-token')).rejects.toThrow(UnauthorizedException);
     });
   });
 });

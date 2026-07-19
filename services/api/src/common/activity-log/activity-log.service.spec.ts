@@ -52,9 +52,7 @@ describe('ActivityLogService', () => {
     });
 
     it('should NOT throw when DB write fails (fail-safe)', async () => {
-      (prisma.activityLog.create as jest.Mock).mockRejectedValue(
-        new Error('DB connection lost'),
-      );
+      (prisma.activityLog.create as jest.Mock).mockRejectedValue(new Error('DB connection lost'));
 
       // Should not throw
       await expect(
@@ -64,18 +62,14 @@ describe('ActivityLogService', () => {
 
     it('should log error message when DB write fails', async () => {
       const loggerSpy = jest.spyOn(service['logger'], 'error').mockImplementation();
-      (prisma.activityLog.create as jest.Mock).mockRejectedValue(
-        new Error('Connection timeout'),
-      );
+      (prisma.activityLog.create as jest.Mock).mockRejectedValue(new Error('Connection timeout'));
 
       await service.log('user-1', 'OWNER', 'Test', 'Order', 'order-1');
 
       expect(loggerSpy).toHaveBeenCalledWith(
         expect.stringContaining('Gagal mencatat activity log'),
       );
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Connection timeout'),
-      );
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('Connection timeout'));
       loggerSpy.mockRestore();
     });
   });

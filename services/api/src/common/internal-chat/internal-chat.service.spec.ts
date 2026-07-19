@@ -23,10 +23,7 @@ describe('InternalChatService', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        InternalChatService,
-        { provide: AuthService, useValue: mockAuthService },
-      ],
+      providers: [InternalChatService, { provide: AuthService, useValue: mockAuthService }],
     }).compile();
 
     service = module.get<InternalChatService>(InternalChatService);

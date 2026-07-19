@@ -164,7 +164,9 @@ describe('AnalyticsService', () => {
 
       const result = await service.getDashboard(actor);
 
-      const expectedFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const expectedFrom = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString()
+        .slice(0, 10);
       expect(result.period.from).toBe(expectedFrom);
     });
 
