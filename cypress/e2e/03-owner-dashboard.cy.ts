@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * Flow 3: Owner End-to-End
  * Dashboard Analytics (12 KPI metrics) + Approval Workflow
@@ -27,19 +28,19 @@ describe('Flow 3: Owner End-to-End', () => {
         headers: { Authorization: `Bearer ${ownerToken}` },
       }).then((res) => {
         expect(res.status).to.eq(200);
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`omzet).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`profit).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`aov).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`orderCounts).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`conversionRate).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`topProducts).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`topCustomers).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`leadTime).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`stockAccuracy).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`rejectRate).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`onTimeDelivery).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`repeatCustomer).to.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`responseTimeCS).to.exist;
+        expect(res.body.omzet).to.exist;
+        expect(res.body.profit).to.exist;
+        expect(res.body.aov).to.exist;
+        expect(res.body.orderCounts).to.exist;
+        expect(res.body.conversionRate).to.exist;
+        expect(res.body.topProducts).to.exist;
+        expect(res.body.topCustomers).to.exist;
+        expect(res.body.leadTime).to.exist;
+        expect(res.body.stockAccuracy).to.exist;
+        expect(res.body.rejectRate).to.exist;
+        expect(res.body.onTimeDelivery).to.exist;
+        expect(res.body.repeatCustomer).to.exist;
+        expect(res.body.responseTimeCS).to.exist;
       });
     });
 
@@ -53,7 +54,7 @@ describe('Flow 3: Owner End-to-End', () => {
         expect(res.body.omzet).to.not.exist;
         expect(res.body.profit).to.not.exist;
         expect(res.body.aov).to.not.exist;
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions`n        expect(res.body.`orderCounts).to.exist;
+        expect(res.body.orderCounts).to.exist;
       });
     });
 

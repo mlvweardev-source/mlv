@@ -1,5 +1,4 @@
 import { defineConfig } from 'cypress';
-import * as eslintPlugin from 'eslint-plugin-cypress/flat';
 
 export default defineConfig({
   e2e: {
