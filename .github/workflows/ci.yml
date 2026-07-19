@@ -76,18 +76,42 @@ jobs:
       - name: Integration Test
         run: pnpm --filter @mlv/api test:e2e
 
+      - name: Install Cypress Binary
+        run: pnpm cypress install
+
       - name: E2E Cypress Test
         run: |
-          # Start services in background
-          pnpm --filter @mlv/api start:prod &
+          # Start services in background with proper env
+          DATABASE_URL="${DATABASE_URL}" REDIS_HOST=localhost REDIS_PORT=6379 \
+            JWT_SECRET="${JWT_SECRET}" \
+            pnpm --filter @mlv/api start &
           API_PID=$!
-          pnpm --filter @mlv/web start &
+          
+          NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            pnpm --filter @mlv/web start &
           WEB_PID=$!
-          pnpm --filter @mlv/admin start &
+          
+          NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            pnpm --filter @mlv/admin start &
           ADMIN_PID=$!
           
-          # Wait for services to be ready
-          sleep 15
+          # Wait for API to be ready
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && break
+            sleep 2
+          done
+          
+          # Wait for web to be ready
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4000 && break
+            sleep 2
+          done
+          
+          # Wait for admin to be ready
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4001 && break
+            sleep 2
+          done
           
           # Run Cypress tests
           pnpm cypress run --browser electron || CYPRESS_EXIT=$?
