@@ -20,6 +20,12 @@ if (!process.env.DATABASE_URL)
   process.env.DATABASE_URL = 'postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public';
 if (!process.env.REDIS_HOST) process.env.REDIS_HOST = 'localhost';
 if (!process.env.REDIS_PORT) process.env.REDIS_PORT = '6379';
+// MIDTRANS_SERVER_KEY is read from .env by ConfigModule — do NOT override it here
+
+/** Get the Midtrans server key for test signature generation */
+export function getTestMidtransKey(): string {
+  return process.env.MIDTRANS_SERVER_KEY || 'test-midtrans-key';
+}
 
 const TEST_JWT_SECRET = process.env.JWT_SECRET;
 
