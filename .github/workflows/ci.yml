@@ -14,6 +14,7 @@ jobs:
       DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
       REDIS_HOST: localhost
       REDIS_PORT: 6379
+      JWT_SECRET: ci-test-secret-key-for-e2e
 
     services:
       postgres:
@@ -70,3 +71,6 @@ jobs:
 
       - name: Test
         run: pnpm turbo test
+
+      - name: Integration Test
+        run: pnpm --filter @mlv/api test:e2e

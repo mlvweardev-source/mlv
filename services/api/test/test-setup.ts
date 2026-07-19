@@ -31,10 +31,7 @@ const TEST_JWT_SECRET = process.env.JWT_SECRET;
 export async function createTestApp(): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
-  })
-    .overrideProvider('BullModule_0_1_2_3_4')
-    .useValue({})
-    .compile();
+  }).compile();
 
   const app = moduleFixture.createNestApplication();
   app.use(cookieParser());
