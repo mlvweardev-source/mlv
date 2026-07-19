@@ -4,10 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'cypress/**'
-      - 'apps/web/**'
-      - 'apps/admin/**'
 
 jobs:
   e2e:

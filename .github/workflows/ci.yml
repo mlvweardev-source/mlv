@@ -75,3 +75,59 @@ jobs:
 
       - name: Integration Test
         run: pnpm --filter @mlv/api test:e2e
+
+      - name: Install Cypress Binary
+        run: pnpm cypress install
+
+      - name: E2E Cypress Test
+        run: |
+          # Start API (node directly, avoid nest CLI overhead)
+          cd services/api
+          DATABASE_URL="${DATABASE_URL}" REDIS_HOST=localhost REDIS_PORT=6379 \
+            JWT_SECRET="${JWT_SECRET}" \
+            node dist/main.js &
+          API_PID=$!
+          cd ../..
+
+          # Start web on port 4000
+          cd apps/web
+          PORT=4000 NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            npx next start &
+          WEB_PID=$!
+          cd ../..
+
+          # Start admin on port 4001
+          cd apps/admin
+          PORT=4001 NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            npx next start &
+          ADMIN_PID=$!
+          cd ../..
+
+          # Wait for API
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && break
+            sleep 2
+          done
+
+          # Wait for web
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4000 && break
+            sleep 2
+          done
+
+          # Wait for admin
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4001 && break
+            sleep 2
+          done
+
+          # Run Cypress
+          pnpm cypress run --browser electron || CYPRESS_EXIT=$?
+
+          # Cleanup
+          kill $API_PID $WEB_PID $ADMIN_PID 2>/dev/null || true
+          exit ${CYPRESS_EXIT:-0}
+        env:
+          CYPRESS_API_URL: http://localhost:3000
+          CYPRESS_WEB_URL: http://localhost:4000
+          CYPRESS_ADMIN_URL: http://localhost:4001
