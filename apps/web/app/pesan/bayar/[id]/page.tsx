@@ -39,7 +39,7 @@ export default function BayarPage() {
     if (!orderId) return;
 
     let isMounted = true;
-    let pollInterval: any = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     const fetchOrder = async () => {
       try {
@@ -50,13 +50,13 @@ export default function BayarPage() {
           setLoading(false);
 
           // Stop polling if the status moves out of MENUNGGU_PEMBAYARAN_DP
-          if (data.status !== 'MENUNGGU_PEMBAYARAN_DP') {
+          if (data.status !== 'MENUNGGU_PEMBAYARAN_DP' && pollInterval) {
             clearInterval(pollInterval);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
-          setError(err.message || 'Gagal mengambil detail pesanan');
+          setError(err instanceof Error ? err.message : 'Gagal mengambil detail pesanan');
           setLoading(false);
         }
       }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { History, Clock } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface ActivityEntry {
   id: string;

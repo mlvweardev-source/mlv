@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { History, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
 interface ActivityEntry {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, User } from 'lucide-react';
+import { MessageSquare, Send } from 'lucide-react';
 import { API_URL, apiFetch, apiJson } from '@/lib/api';
 import type { StaffRole } from '@/lib/auth';
 
@@ -28,7 +28,6 @@ interface ChatThread {
  */
 export function ChatPanel({
   orderId,
-  role,
   userId,
 }: {
   orderId: string;

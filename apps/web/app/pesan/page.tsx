@@ -47,8 +47,6 @@ export default function PesanPage() {
 
   // Auth state
   const [me, setMe] = useState<Me | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
   // Form states
   const [productType, setProductType] = useState('Kaos');
   const [sizes, setSizes] = useState<Record<string, number>>({
@@ -91,8 +89,7 @@ export default function PesanPage() {
 
     apiFetch<Me>('/auth/me')
       .then((data) => setMe(data.actorType === 'CUSTOMER' ? data : null))
-      .catch(() => setMe(null))
-      .finally(() => setAuthChecked(true));
+      .catch(() => setMe(null));
 
     // Restore draft from localStorage
     const savedDraft = localStorage.getItem('mlv_order_builder_draft');
@@ -287,9 +284,11 @@ export default function PesanPage() {
             status: 'MENUNGGU_PEMBAYARAN_DP',
           }),
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Clear message if stock reservation fails
-        throw new Error(err.message || 'Reservasi bahan gagal karena stok tidak mencukupi.');
+        const msg =
+          err instanceof Error ? err.message : 'Reservasi bahan gagal karena stok tidak mencukupi.';
+        throw new Error(msg);
       }
 
       // Step 6: Create Midtrans Payment Link for DP 50%
@@ -314,9 +313,11 @@ export default function PesanPage() {
       } else {
         throw new Error('Gagal mendapatkan tautan pembayaran Midtrans');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setCheckoutError(error.message || 'Terjadi kesalahan saat memproses checkout.');
+      setCheckoutError(
+        error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses checkout.',
+      );
       setIsSubmitting(false);
     }
   };
