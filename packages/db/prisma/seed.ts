@@ -343,17 +343,35 @@ async function main() {
   for (const item of initialStock) {
     const material = materials[item.name];
     if (material) {
-      const balance = await prisma.stockBalance.findUnique({
+      // Always ensure stock is at target level (upsert for idempotency + re-seed)
+      await prisma.stockBalance.upsert({
         where: {
           materialId_warehouseId: {
             materialId: material.id,
             warehouseId: warehouse.id,
           },
         },
+        update: {
+          qtyAvailable: item.qty,
+          qtyReserved: 0,
+        },
+        create: {
+          materialId: material.id,
+          warehouseId: warehouse.id,
+          qtyAvailable: item.qty,
+          qtyReserved: 0,
+        },
       });
 
-      if (!balance) {
-        // Record movement (IN)
+      // Record movement if not already exists (for audit trail)
+      const existingMovement = await prisma.stockMovement.findFirst({
+        where: {
+          materialId: material.id,
+          warehouseId: warehouse.id,
+          refType: 'initial_seed',
+        },
+      });
+      if (!existingMovement) {
         await prisma.stockMovement.create({
           data: {
             materialId: material.id,
@@ -365,20 +383,8 @@ async function main() {
             createdBy: 'system',
           },
         });
-
-        // Create balance
-        await prisma.stockBalance.create({
-          data: {
-            materialId: material.id,
-            warehouseId: warehouse.id,
-            qtyAvailable: item.qty,
-            qtyReserved: 0,
-          },
-        });
-        console.log(`  ✅ Stock Balance: ${item.name} -> ${item.qty} ${material.satuan}`);
-      } else {
-        console.log(`  ℹ️ Stock Balance for ${item.name} already exists`);
       }
+      console.log(`  ✅ Stock Balance: ${item.name} → ${item.qty} ${material.satuan}`);
     }
   }
 
