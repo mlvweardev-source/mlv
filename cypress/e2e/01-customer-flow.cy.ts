@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * Flow 1: Customer End-to-End
  * Login → Order → Checkout → Chat

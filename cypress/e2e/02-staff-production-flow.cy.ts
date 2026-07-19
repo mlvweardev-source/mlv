@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * Flow 2: Staff Production End-to-End
  * Owner creates order → checkout → view tasks → view routing → finance → shipping → analytics
@@ -6,17 +7,12 @@ describe('Flow 2: Staff Production End-to-End', () => {
   const API = Cypress.env('API_URL');
   const CUSTOMER_ID = 'f2df1936-d819-46fd-8658-96b9dff7b7ce';
   const OWNER_ID = '04b26d55-1f8c-4a80-b282-52cb124cf6a8';
-  const MANAJER_ID = '620930c7-74ba-4b4a-ae6e-3ccc5b8110f0';
   let ownerToken: string;
-  let manajerToken: string;
   let orderId: string;
 
   before(() => {
     cy.task<string>('getStaffToken', { userId: OWNER_ID, role: 'OWNER' }).then((t) => {
       ownerToken = t;
-    });
-    cy.task<string>('getStaffToken', { userId: MANAJER_ID, role: 'MANAJER_PRODUKSI' }).then((t) => {
-      manajerToken = t;
     });
   });
 

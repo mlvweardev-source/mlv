@@ -1,12 +1,12 @@
 import { defineConfig } from 'cypress';
+import * as eslintPlugin from 'eslint-plugin-cypress/flat';
 
 export default defineConfig({
   e2e: {
-    // No baseUrl — we use full URLs in cy.request() calls
-    // The API server is started before Cypress runs
     specPattern: 'cypress/e2e/**/*.cy.ts',
     supportFile: 'cypress/support/e2e.ts',
     setupNodeEvents(on, config) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('./cypress/support/plugins.js')(on, config);
       return config;
     },
@@ -18,8 +18,6 @@ export default defineConfig({
     screenshotOnRunFailure: true,
     env: {
       API_URL: 'http://localhost:3000',
-      WEB_URL: 'http://localhost:4000',
-      ADMIN_URL: 'http://localhost:4001',
     },
   },
 });

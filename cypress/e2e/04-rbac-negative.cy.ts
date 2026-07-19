@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 /**
  * Flow 4: RBAC Negative Test per Role
  * Login as each role, try to access unauthorized areas → verify blocked.
