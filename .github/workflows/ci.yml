@@ -15,6 +15,7 @@ jobs:
       REDIS_HOST: localhost
       REDIS_PORT: 6379
       JWT_SECRET: ci-test-secret-key-for-e2e
+      MIDTRANS_SERVER_KEY: ci-midtrans-test-key
 
     services:
       postgres:
