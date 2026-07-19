@@ -126,7 +126,12 @@ async function main() {
           {
             productType: 'Kaos',
             basePriceSnapshot: 85000,
-            sizes: { create: [{ ukuran: 'M', qty: 30 }, { ukuran: 'L', qty: 20 }] },
+            sizes: {
+              create: [
+                { ukuran: 'M', qty: 30 },
+                { ukuran: 'L', qty: 20 },
+              ],
+            },
           },
         ],
       },
@@ -213,10 +218,7 @@ async function main() {
       aiReply1.senderId === null,
       `senderId=${aiReply1.senderId}`,
     );
-    check(
-      'AI reply punya pesan (tidak kosong)',
-      aiReply1.pesan.length > 10,
-    );
+    check('AI reply punya pesan (tidak kosong)', aiReply1.pesan.length > 10);
   }
 
   // ==========================================
@@ -290,10 +292,7 @@ async function main() {
     orderBy: { createdAt: 'asc' },
   });
   const newMsgsEsc2 = thread.slice(beforeEsc2);
-  check(
-    'AI TIDAK jawab komplain (escalated)',
-    !newMsgsEsc2.find((m) => m.senderType === 'ai_bot'),
-  );
+  check('AI TIDAK jawab komplain (escalated)', !newMsgsEsc2.find((m) => m.senderType === 'ai_bot'));
 
   // ==========================================
   // 6. PERTANYAAN OUT-OF-CONTEXT #3 — REVISI SPESIFIKASI
@@ -352,21 +351,13 @@ async function main() {
   console.log(
     `  ℹ️  Thread: ${customerMsgs.length} customer / ${aiBotMsgs.length} ai_bot / ${adminMsgs.length} admin (total ${thread.length})`,
   );
-  check(
-    'Ada pesan customer',
-    customerMsgs.length >= 5,
-    `jumlah=${customerMsgs.length}`,
-  );
+  check('Ada pesan customer', customerMsgs.length >= 5, `jumlah=${customerMsgs.length}`);
   check(
     'Ada minimal 2 balasan AI (in-context)',
     aiBotMsgs.length >= 2,
     `jumlah=${aiBotMsgs.length}`,
   );
-  check(
-    'Ada balasan admin manual',
-    adminMsgs.length === 1,
-    `jumlah=${adminMsgs.length}`,
-  );
+  check('Ada balasan admin manual', adminMsgs.length === 1, `jumlah=${adminMsgs.length}`);
 
   // ==========================================
   // CLEANUP
@@ -386,9 +377,7 @@ async function main() {
 
   line('HASIL DEMO CUSTOMER SUPPORT');
   console.log(`\n${failures === 0 ? '✅' : '❌'} ${failures} failure(s)`);
-  console.log(
-    '\nKesimpulan: AI Customer Support menjawab dari data order aktual',
-  );
+  console.log('\nKesimpulan: AI Customer Support menjawab dari data order aktual');
   console.log('  - Pertanyaan in-context (status, payment) → auto-reply');
   console.log('  - Pertanyaan out-of-context (diskon, komplain, revisi) → eskalasi');
   console.log('  - Pesan yang di-eskalasi tetap masuk thread, staf balas manual');

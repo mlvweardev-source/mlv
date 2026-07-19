@@ -33,9 +33,7 @@ describe('GeminiClient — Quotation Assistant & Customer Support (Real API)', (
   beforeAll(() => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.log(
-        '⏭️  Skipping AI real API tests for new services — GEMINI_API_KEY not set',
-      );
+      console.log('⏭️  Skipping AI real API tests for new services — GEMINI_API_KEY not set');
       skipTests = true;
       return;
     }

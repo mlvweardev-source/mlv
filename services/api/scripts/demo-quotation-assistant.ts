@@ -139,7 +139,10 @@ async function main() {
   const penjahitToken = await loginStaff('penjahit@mlv.dev', 'penjahit123');
   check('Owner/Manajer/Penjahit login OK', true);
 
-  const headersOwner = { 'Content-Type': 'application/json', cookie: `mlv_access_token=${ownerToken}` };
+  const headersOwner = {
+    'Content-Type': 'application/json',
+    cookie: `mlv_access_token=${ownerToken}`,
+  };
   const headersManajer = {
     'Content-Type': 'application/json',
     cookie: `mlv_access_token=${manajerToken}`,
@@ -173,10 +176,7 @@ async function main() {
         typeof d1.saran_harga.harga_per_pcs?.high === 'number',
       `low=${d1.saran_harga.harga_per_pcs?.low} high=${d1.saran_harga.harga_per_pcs?.high}`,
     );
-    check(
-      'low <= high',
-      d1.saran_harga.harga_per_pcs.low <= d1.saran_harga.harga_per_pcs.high,
-    );
+    check('low <= high', d1.saran_harga.harga_per_pcs.low <= d1.saran_harga.harga_per_pcs.high);
     check(
       'Ada alasan',
       typeof d1.saran_harga.alasan === 'string' && d1.saran_harga.alasan.length > 10,
@@ -214,9 +214,7 @@ async function main() {
     );
     console.log(`  ℹ️  Alasan: ${d2.saran_harga.alasan}`);
     if (d2.saran_harga.faktor_pendorong_harga?.length > 0) {
-      console.log(
-        `  ℹ️  Faktor: ${d2.saran_harga.faktor_pendorong_harga.join(', ')}`,
-      );
+      console.log(`  ℹ️  Faktor: ${d2.saran_harga.faktor_pendorong_harga.join(', ')}`);
     }
   } else {
     console.log('  ℹ️  saran_harga = null (GEMINI_API_KEY tidak di-set)');
@@ -234,10 +232,7 @@ async function main() {
     afterItem?.basePriceSnapshot === 85000,
     `nilai=${afterItem?.basePriceSnapshot}`,
   );
-  check(
-    'Order status TETAP DRAFT (tidak ada transisi paksa)',
-    afterItem?.orderId === order.id,
-  );
+  check('Order status TETAP DRAFT (tidak ada transisi paksa)', afterItem?.orderId === order.id);
   // Re-fetch order status
   const afterOrder = await prisma.order.findUnique({ where: { id: order.id } });
   check('Order status masih DRAFT', afterOrder?.status === 'DRAFT', `status=${afterOrder?.status}`);
