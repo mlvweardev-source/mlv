@@ -444,4 +444,57 @@ export class CustomerChatService {
     if (senderType === 'admin') return 'Admin MLV';
     return 'AI Assistant';
   }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Rata-rata waktu respons CS: dari pesan customer ke balasan pertama admin/ai_bot.
+   * Termasuk balasan AI bot sebagai response (Customer Support Fase 12 adalah fitur aktif).
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getAverageResponseTime(from: Date, to: Date): Promise<number | null> {
+    // Ambil semua thread yang punya pesan dalam periode
+    const threads = await prisma.customerChatThread.findMany({
+      where: {
+        messages: {
+          some: { createdAt: { gte: from, lte: to } },
+        },
+      },
+      select: {
+        id: true,
+        messages: {
+          where: { createdAt: { gte: from, lte: to } },
+          orderBy: { createdAt: 'asc' },
+          select: { senderType: true, createdAt: true },
+        },
+      },
+    });
+
+    const responseTimes: number[] = [];
+
+    for (const thread of threads) {
+      const msgs = thread.messages;
+      let lastCustomerMsg: Date | null = null;
+
+      for (const msg of msgs) {
+        if (msg.senderType === 'customer') {
+          lastCustomerMsg = msg.createdAt;
+        } else if (lastCustomerMsg && (msg.senderType === 'admin' || msg.senderType === 'ai_bot')) {
+          const diffMs = msg.createdAt.getTime() - lastCustomerMsg.getTime();
+          if (diffMs > 0) {
+            responseTimes.push(diffMs);
+          }
+          lastCustomerMsg = null; // reset setelah ada response
+        }
+      }
+    }
+
+    if (responseTimes.length === 0) return null;
+
+    // Return average in minutes
+    const avgMs = responseTimes.reduce((sum, rt) => sum + rt, 0) / responseTimes.length;
+    return Math.round((avgMs / (1000 * 60)) * 10) / 10; // minutes, 1 decimal
+  }
 }

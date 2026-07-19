@@ -348,4 +348,38 @@ export class ShippingService {
         return status;
     }
   }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * On-time delivery rate: % pengiriman yang deliveredAt <= order.deadline.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getOnTimeDeliveryRate(
+    from: Date,
+    to: Date,
+  ): Promise<{ total: number; onTime: number; rate: number }> {
+    const shipments = await prisma.shipment.findMany({
+      where: {
+        deliveredAt: { not: null },
+        shippedAt: { gte: from, lte: to },
+      },
+      select: {
+        deliveredAt: true,
+        order: { select: { deadline: true } },
+      },
+    });
+
+    const total = shipments.length;
+    if (total === 0) return { total: 0, onTime: 0, rate: 0 };
+
+    const onTime = shipments.filter((s) => {
+      if (!s.deliveredAt || !s.order.deadline) return false;
+      return s.deliveredAt <= s.order.deadline;
+    }).length;
+
+    return { total, onTime, rate: onTime / total };
+  }
 }

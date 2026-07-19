@@ -1091,6 +1091,80 @@ export class FinanceService {
     }
   }
 
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Agregasi revenue dari payment SUCCESS dalam periode.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getRevenueByPeriod(
+    from: Date,
+    to: Date,
+  ): Promise<{ total: number; byMonth: Array<{ month: string; total: number }> }> {
+    const payments = await prisma.payment.findMany({
+      where: {
+        status: 'SUCCESS',
+        createdAt: { gte: from, lte: to },
+      },
+      select: { jumlah: true, createdAt: true },
+    });
+
+    const total = payments.reduce((sum, p) => sum + p.jumlah, 0);
+
+    const monthMap = new Map<string, number>();
+    for (const p of payments) {
+      const key = `${p.createdAt.getFullYear()}-${String(p.createdAt.getMonth() + 1).padStart(2, '0')}`;
+      monthMap.set(key, (monthMap.get(key) ?? 0) + p.jumlah);
+    }
+
+    const byMonth = Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, t]) => ({ month, total: t }));
+
+    return { total, byMonth };
+  }
+
+  /**
+   * Total biaya bahan dari purchase_orders COMPLETED dalam periode.
+   * Dipanggil oleh AnalyticsService untuk kalkulasi Profit.
+   */
+  async getMaterialCostsByPeriod(from: Date, to: Date): Promise<number> {
+    const result = await prisma.purchaseOrder.aggregate({
+      where: {
+        status: 'COMPLETED',
+        tglBeli: { gte: from, lte: to },
+      },
+      _sum: { totalBiaya: true },
+    });
+    return result._sum.totalBiaya ?? 0;
+  }
+
+  /**
+   * Hitung AOV (Average Order Value) dari payment SUCCESS dalam periode.
+   * AOV = total revenue / jumlah order unik yang punya payment SUCCESS.
+   */
+  async getAverageOrderValue(
+    from: Date,
+    to: Date,
+  ): Promise<{ aov: number; orderCount: number; totalRevenue: number }> {
+    const payments = await prisma.payment.findMany({
+      where: {
+        status: 'SUCCESS',
+        createdAt: { gte: from, lte: to },
+      },
+      select: { orderId: true, jumlah: true },
+    });
+
+    const totalRevenue = payments.reduce((sum, p) => sum + p.jumlah, 0);
+    const uniqueOrderIds = new Set(payments.map((p) => p.orderId));
+    const orderCount = uniqueOrderIds.size;
+    const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
+
+    return { aov, orderCount, totalRevenue };
+  }
+
   private calculateOrderTotal(order: any): number {
     let total = 0;
 

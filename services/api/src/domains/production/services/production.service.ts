@@ -810,4 +810,140 @@ export class ProductionService {
       taskCountByStage,
     };
   }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Rata-rata lead time produksi: dari task pertama (startedAt) ke task terakhir (completedAt)
+   * per order, dirata-ratakan di semua order dalam periode.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getAverageLeadTime(from: Date, to: Date): Promise<number | null> {
+    // Ambil order yang punya task dalam periode
+    const tasks = await prisma.productionTask.findMany({
+      where: {
+        completedAt: { gte: from, lte: to },
+        status: 'SELESAI',
+      },
+      select: {
+        orderItemId: true,
+        sequence: true,
+        startedAt: true,
+        completedAt: true,
+        orderItem: { select: { orderId: true } },
+      },
+      orderBy: { sequence: 'asc' },
+    });
+
+    // Group by orderId
+    const orderTasks = new Map<
+      string,
+      Array<{ sequence: number; startedAt: Date | null; completedAt: Date | null }>
+    >();
+    for (const t of tasks) {
+      const orderId = t.orderItem.orderId;
+      const list = orderTasks.get(orderId) ?? [];
+      list.push({ sequence: t.sequence, startedAt: t.startedAt, completedAt: t.completedAt });
+      orderTasks.set(orderId, list);
+    }
+
+    // Hitung lead time per order: earliest startedAt → latest completedAt
+    const leadTimes: number[] = [];
+    for (const [, orderTaskList] of orderTasks.entries()) {
+      const sorted = orderTaskList.sort((a, b) => a.sequence - b.sequence);
+      const firstTask = sorted[0];
+      const lastTask = sorted[sorted.length - 1];
+
+      if (firstTask?.startedAt && lastTask?.completedAt) {
+        const leadTimeMs = lastTask.completedAt.getTime() - firstTask.startedAt.getTime();
+        if (leadTimeMs > 0) {
+          leadTimes.push(leadTimeMs);
+        }
+      }
+    }
+
+    if (leadTimes.length === 0) return null;
+
+    // Return average in hours
+    const avgMs = leadTimes.reduce((sum, lt) => sum + lt, 0) / leadTimes.length;
+    return Math.round((avgMs / (1000 * 60 * 60)) * 10) / 10; // hours, 1 decimal
+  }
+
+  /**
+   * Reject rate QC: % task yang qc_status='reject' dari total task yang sudah QC.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getRejectRate(
+    from: Date,
+    to: Date,
+  ): Promise<{ total: number; rejected: number; rate: number }> {
+    const tasksWithQc = await prisma.productionTask.findMany({
+      where: {
+        qcStatus: { not: null },
+        qcAt: { gte: from, lte: to },
+      },
+      select: { qcStatus: true },
+    });
+
+    const total = tasksWithQc.length;
+    const rejected = tasksWithQc.filter((t) => t.qcStatus === 'reject').length;
+    const rate = total > 0 ? rejected / total : 0;
+
+    return { total, rejected, rate };
+  }
+
+  /**
+   * Estimasi biaya jahit per produk dari production_routings.
+   * PLACEHOLDER — field estimasiBiayaJahitPerPcs adalah estimasi, bukan data final.
+   * Dipanggil oleh AnalyticsService untuk kalkulasi Profit.
+   */
+  async getProductionCostPerProduct(): Promise<Record<string, number>> {
+    const routings = await prisma.productionRouting.findMany({
+      select: { productType: true, estimasiBiayaJahitPerPcs: true },
+    });
+
+    const result: Record<string, number> = {};
+    for (const r of routings) {
+      result[r.productType] = r.estimasiBiayaJahitPerPcs ?? 0;
+    }
+    return result;
+  }
+
+  /**
+   * Set QC status untuk task (PATCH /production/tasks/:id/qc).
+   * Hanya Manajer Produksi/Owner yang bisa. Task harus SELESAI dulu.
+   */
+  async setQcStatus(
+    taskId: string,
+    dto: { qcStatus: 'pass' | 'reject'; qcReason?: string },
+    actor: JwtPayload,
+  ): Promise<any> {
+    if (actor.role !== 'OWNER' && actor.role !== 'MANAJER_PRODUKSI') {
+      throw new ForbiddenException('Hanya Owner atau Manajer Produksi yang bisa verifikasi QC');
+    }
+
+    const task = await prisma.productionTask.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task tidak ditemukan');
+    }
+
+    if (task.status !== 'SELESAI') {
+      throw new BadRequestException('QC hanya bisa dilakukan setelah task SELESAI');
+    }
+
+    return prisma.productionTask.update({
+      where: { id: taskId },
+      data: {
+        qcStatus: dto.qcStatus,
+        qcReason: dto.qcStatus === 'reject' ? (dto.qcReason ?? null) : null,
+        qcBy: actor.sub,
+        qcAt: new Date(),
+      },
+    });
+  }
 }

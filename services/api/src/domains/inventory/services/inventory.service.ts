@@ -996,4 +996,37 @@ export class InventoryService {
       bomSummary,
     };
   }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Stock accuracy: 1 - (rasiadjustment terhadap total movement).
+   * Formula: accuracy = 1 - (COUNT(ADJUST) / COUNT(IN+OUT+ADJUST))
+   * Semakin rendah rasio adjustment, semakin akurat stok.
+   *
+   * PLACEHOLDER: Karena tidak ada physical stock count, akurasi diukur
+   * dari seberapa jarang koreksi manual terjadi.
+   *
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getStockAccuracy(
+    from: Date,
+    to: Date,
+  ): Promise<{ totalMovements: number; adjustments: number; accuracy: number }> {
+    const movements = await prisma.stockMovement.findMany({
+      where: {
+        createdAt: { gte: from, lte: to },
+        tipe: { in: ['IN', 'OUT', 'ADJUST'] },
+      },
+      select: { tipe: true },
+    });
+
+    const totalMovements = movements.length;
+    const adjustments = movements.filter((m) => m.tipe === 'ADJUST').length;
+    const accuracy = totalMovements > 0 ? 1 - adjustments / totalMovements : 1;
+
+    return { totalMovements, adjustments, accuracy };
+  }
 }

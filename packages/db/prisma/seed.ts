@@ -393,30 +393,35 @@ async function main() {
   console.log('🌱 Seeding production routings...');
 
   const routingsData = [
-    // Kaos: Full flow (bisa sablon)
+    // Kaos: Standard garment flow
     {
       productType: 'Kaos',
       urutanTask: ['CUTTING', 'PRINTING', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+      estimasiBiayaJahitPerPcs: 5000,
     },
-    // Kemeja: Tanpa printing/embroidery (asumsi untuk fase ini)
+    // Kemeja: Standard garment flow (no printing by default)
     {
       productType: 'Kemeja',
       urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+      estimasiBiayaJahitPerPcs: 8000,
     },
-    // Hoodie: Full flow dengan embroidery opsional
+    // Hoodie: Standard garment flow
     {
       productType: 'Hoodie',
-      urutanTask: ['CUTTING', 'EMBROIDERY', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+      urutanTask: ['CUTTING', 'PRINTING', 'SEWING', 'FINISHING', 'IRONING', 'PACKING'],
+      estimasiBiayaJahitPerPcs: 10000,
     },
     // Topi: Simple flow
     {
       productType: 'Topi',
       urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'PACKING'],
+      estimasiBiayaJahitPerPcs: 3000,
     },
     // Tas: Simple flow
     {
       productType: 'Tas',
       urutanTask: ['CUTTING', 'SEWING', 'FINISHING', 'PACKING'],
+      estimasiBiayaJahitPerPcs: 7000,
     },
   ];
 
@@ -425,13 +430,17 @@ async function main() {
       where: { productType: routing.productType },
       update: {
         urutanTask: routing.urutanTask,
+        estimasiBiayaJahitPerPcs: routing.estimasiBiayaJahitPerPcs,
       },
       create: {
         productType: routing.productType,
         urutanTask: routing.urutanTask,
+        estimasiBiayaJahitPerPcs: routing.estimasiBiayaJahitPerPcs,
       },
     });
-    console.log(`  ✅ Routing ${routing.productType}: ${routing.urutanTask.join(' → ')}`);
+    console.log(
+      `  ✅ Routing ${routing.productType}: ${routing.urutanTask.join(' → ')} (biaya jahit: Rp ${routing.estimasiBiayaJahitPerPcs.toLocaleString('id-ID')}/pcs)`,
+    );
   }
 
   // ==========================================

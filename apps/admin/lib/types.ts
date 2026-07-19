@@ -360,3 +360,30 @@ export interface ShipmentRow {
   createdAt: string;
   updatedAt: string;
 }
+
+// ==========================================
+// Analytics Domain (Fase 13)
+// ==========================================
+
+export interface DashboardData {
+  period: { from: string; to: string };
+  omzet?: { total: number; byMonth: Array<{ month: string; total: number }> };
+  profit?: {
+    total: number;
+    revenue: number;
+    materialCost: number;
+    productionCost: number;
+    note: string;
+  };
+  aov?: { value: number; orderCount: number; totalRevenue: number };
+  orderCounts: { total: number; active: number; completed: number; cancelled: number };
+  conversionRate: { draftCount: number; confirmedCount: number; rate: number };
+  topProducts: Array<{ productType: string; qty: number; revenue: number }>;
+  topCustomers: Array<{ customerId: string; nama: string; orderCount: number; totalSpent: number }>;
+  leadTime: { averageHours: number | null; note: string };
+  onTimeDelivery: { total: number; onTime: number; rate: number };
+  rejectRate: { total: number; rejected: number; rate: number };
+  stockAccuracy: { totalMovements: number; adjustments: number; accuracy: number; note: string };
+  repeatCustomer: { totalActive: number; repeatCount: number; rate: number };
+  responseTimeCS: { averageMinutes: number | null; note: string };
+}

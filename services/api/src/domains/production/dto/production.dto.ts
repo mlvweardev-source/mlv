@@ -42,6 +42,16 @@ export class AssignTaskDto {
   userId!: string; // User ID untuk ditugaskan
 }
 
+// PATCH /production/tasks/:id/qc — Fase 13: QC verification
+export class SetQcStatusDto {
+  @IsEnum(['pass', 'reject'])
+  qcStatus!: 'pass' | 'reject';
+
+  @IsOptional()
+  @IsString()
+  qcReason?: string;
+}
+
 // Response DTOs
 export class ProductionTaskResponseDto {
   id!: string;

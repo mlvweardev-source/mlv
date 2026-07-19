@@ -563,6 +563,8 @@ model ProductionRouting {
   id          String   @id @default(uuid())
   productType String   @unique @map("product_type")
  urutanTask  String[] @map("urutan_task") // Array task_type: ["Cutting","Printing","Sewing",...]
+  // Fase 13: estimasi biaya jahit per pcs (PLACEHOLDER — bukan angka final dari bisnis)
+  estimasiBiayaJahitPerPcs Float? @default(0) @map("estimasi_biaya_jahit_per_pcs")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -580,6 +582,11 @@ model ProductionTask {
   assignedTo   String?       @map("assigned_to") // FK ke User.id — plain string (DDD cross-domain)
   startedAt    DateTime?     @map("started_at")
   completedAt  DateTime?     @map("completed_at")
+  // Fase 13: QC verification — Manajer Produksi verifikasi terpisah setelah task SELESAI
+  qcStatus     String?       @map("qc_status")    // null=belum QC, "pass", "reject"
+  qcReason     String?       @map("qc_reason")    // alasan reject (teks bebas)
+  qcBy         String?       @map("qc_by")        // User.id Manajer yang verifikasi
+  qcAt         DateTime?     @map("qc_at")        // waktu verifikasi QC
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 

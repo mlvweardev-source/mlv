@@ -6,6 +6,7 @@ import { InventoryService } from '../../inventory/services/inventory.service';
 import { ProductionService } from '../../production/services/production.service';
 import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
+import { CustomerService } from '../../customer/services/customer.service';
 import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
@@ -79,6 +80,12 @@ const mockProductionService = {
 // Mock ActivityLogService (Fase 9.4)
 const mockActivityLog = { log: jest.fn().mockResolvedValue(undefined) };
 
+// Mock CustomerService (Fase 13 — analytics top customers)
+const mockCustomerService = {
+  getCustomerByIdInternal: jest.fn(),
+  getCustomersByIdsInternal: jest.fn().mockResolvedValue(new Map()),
+};
+
 describe('OrderService', () => {
   let service: OrderService;
   let mockEventBus: { publish: jest.Mock };
@@ -127,6 +134,10 @@ describe('OrderService', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') },
+        },
+        {
+          provide: CustomerService,
+          useValue: mockCustomerService,
         },
       ],
     }).compile();

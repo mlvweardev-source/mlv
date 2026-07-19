@@ -5,6 +5,7 @@ import { InventoryService } from '../inventory/services/inventory.service';
 import { ProductionService } from '../production/services/production.service';
 import { EventBusService } from '../../event-bus/event-bus.service';
 import { ActivityLogService } from '../../common/activity-log/activity-log.service';
+import { CustomerService } from '../customer/services/customer.service';
 import { EVENT_NAMES } from '@mlv/types';
 
 // Mock Prisma
@@ -61,6 +62,11 @@ describe('OrderService - Event Consumer Idempotency (§16)', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('http://localhost:3002') },
+        },
+        // CustomerService (Fase 13 — analytics)
+        {
+          provide: CustomerService,
+          useValue: { getCustomersByIdsInternal: jest.fn().mockResolvedValue(new Map()) },
         },
       ],
     }).compile();

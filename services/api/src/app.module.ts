@@ -10,6 +10,7 @@ import { OrderModule } from './domains/order/order.module';
 import { ProductionModule } from './domains/production/production.module';
 import { FinanceModule } from './domains/finance/finance.module';
 import { ShippingModule } from './domains/shipping/shipping.module';
+import { AnalyticsModule } from './domains/analytics/analytics.module';
 import { ActivityLogModule } from './common/activity-log/activity-log.module';
 import { InternalChatModule } from './common/internal-chat/internal-chat.module';
 import { CustomerChatModule } from './common/customer-chat/customer-chat.module';
@@ -32,6 +33,7 @@ import { AuthGuard } from './domains/identity-access/guards/auth.guard';
     ProductionModule,
     FinanceModule,
     ShippingModule,
+    AnalyticsModule, // Fase 13: Dashboard Analytics & KPI (read-only aggregation)
     // Infrastruktur cross-cutting (Fase 9.4)
     ActivityLogModule,
     InternalChatModule,

@@ -14,7 +14,12 @@ import { UserRole } from '@mlv/auth';
 import { AuthGuard, Roles } from '../../identity-access/guards/auth.guard';
 import { GetUser } from '../../identity-access/guards/auth.guard';
 import { ProductionService } from '../services/production.service';
-import { GetTasksQueryDto, UpdateTaskStatusDto, AssignTaskDto } from '../dto/production.dto';
+import {
+  GetTasksQueryDto,
+  UpdateTaskStatusDto,
+  AssignTaskDto,
+  SetQcStatusDto,
+} from '../dto/production.dto';
 
 /**
  * Production Domain Controller
@@ -88,5 +93,20 @@ export class ProductionController {
     @GetUser() actor: JwtPayload,
   ) {
     return this.productionService.assignTask(taskId, dto, actor);
+  }
+
+  /**
+   * PATCH /production/tasks/:id/qc
+   * Verifikasi QC — set pass/reject setelah task SELESAI.
+   * Hanya Owner & Manajer Produksi (§5.1).
+   */
+  @Patch('tasks/:id/qc')
+  @Roles(UserRole.OWNER, UserRole.MANAJER_PRODUKSI)
+  async setQcStatus(
+    @Param('id', ParseUUIDPipe) taskId: string,
+    @Body() dto: SetQcStatusDto,
+    @GetUser() actor: JwtPayload,
+  ) {
+    return this.productionService.setQcStatus(taskId, dto, actor);
   }
 }

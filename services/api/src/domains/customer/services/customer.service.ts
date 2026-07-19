@@ -217,4 +217,38 @@ export class CustomerService {
     }
     // Staff (semua role) bisa akses data customer manapun
   }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Repeat customer rate: % customer dengan >1 order dalam periode.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getRepeatCustomerRate(
+    from: Date,
+    to: Date,
+  ): Promise<{ totalActive: number; repeatCount: number; rate: number }> {
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: { notIn: ['DRAFT', 'DIBATALKAN'] },
+      },
+      select: { customerId: true },
+    });
+
+    const orderCountByCustomer = new Map<string, number>();
+    for (const o of orders) {
+      orderCountByCustomer.set(o.customerId, (orderCountByCustomer.get(o.customerId) ?? 0) + 1);
+    }
+
+    const totalActive = orderCountByCustomer.size;
+    const repeatCount = Array.from(orderCountByCustomer.values()).filter(
+      (count) => count > 1,
+    ).length;
+    const rate = totalActive > 0 ? repeatCount / totalActive : 0;
+
+    return { totalActive, repeatCount, rate };
+  }
 }

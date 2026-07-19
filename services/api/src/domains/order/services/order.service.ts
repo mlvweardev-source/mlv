@@ -17,6 +17,7 @@ import { EventBusService } from '../../../event-bus/event-bus.service';
 import { ActivityLogService } from '../../../common/activity-log/activity-log.service';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { ProductionService } from '../../production/services/production.service';
+import { CustomerService } from '../../customer/services/customer.service';
 import { ReserveStockDto } from '../../inventory/dto/inventory.dto';
 import {
   CreateOrderDto,
@@ -67,6 +68,7 @@ export class OrderService {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => ProductionService))
     private readonly productionService: ProductionService,
+    private readonly customerService: CustomerService,
   ) {}
 
   // ==========================================
@@ -1979,5 +1981,195 @@ export class OrderService {
     return Array.from(weekMap.entries())
       .map(([period, data]) => ({ period, ...data }))
       .sort((a, b) => a.period.localeCompare(b.period));
+  }
+
+  // ==========================================
+  // Analytics Internal Methods (Fase 13)
+  // ==========================================
+
+  /**
+   * Hitung order per status bucket dalam periode.
+   * Dipanggil oleh AnalyticsService (DDD boundary).
+   */
+  async getOrderCountsByPeriod(
+    from: Date,
+    to: Date,
+  ): Promise<{ total: number; active: number; completed: number; cancelled: number }> {
+    const orders = await prisma.order.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { status: true },
+    });
+
+    const activeStatuses = [
+      'DRAFT',
+      'MENUNGGU_PEMBAYARAN_DP',
+      'ANTREAN',
+      'CUTTING',
+      'PRINTING',
+      'EMBROIDERY',
+      'SEWING',
+      'FINISHING',
+      'IRONING',
+      'PACKING',
+      'MENUNGGU_PELUNASAN',
+    ];
+    const completedStatuses = ['SELESAI', 'LUNAS', 'DIKIRIM'];
+
+    let active = 0;
+    let completed = 0;
+    let cancelled = 0;
+
+    for (const o of orders) {
+      if (activeStatuses.includes(o.status)) active++;
+      else if (completedStatuses.includes(o.status)) completed++;
+      else if (o.status === 'DIBATALKAN') cancelled++;
+    }
+
+    return { total: orders.length, active, completed, cancelled };
+  }
+
+  /**
+   * Hitung conversion rate: Draft → Order Confirmed (ANTREAN atau lebih tinggi).
+   * Dipanggil oleh AnalyticsService.
+   */
+  async getConversionRate(
+    from: Date,
+    to: Date,
+  ): Promise<{ draftCount: number; confirmedCount: number; rate: number }> {
+    const orders = await prisma.order.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { status: true },
+    });
+
+    const draftCount = orders.filter((o) => o.status === 'DRAFT').length;
+    const confirmedStatuses = [
+      'ANTREAN',
+      'CUTTING',
+      'PRINTING',
+      'EMBROIDERY',
+      'SEWING',
+      'FINISHING',
+      'IRONING',
+      'PACKING',
+      'SELESAI',
+      'MENUNGGU_PELUNASAN',
+      'LUNAS',
+      'DIKIRIM',
+    ];
+    const confirmedCount = orders.filter((o) => confirmedStatuses.includes(o.status)).length;
+    const rate =
+      draftCount + confirmedCount > 0 ? confirmedCount / (draftCount + confirmedCount) : 0;
+
+    return { draftCount, confirmedCount, rate };
+  }
+
+  /**
+   * Top produk berdasarkan quantity dan revenue dalam periode.
+   * Data dari tabel orders + order_items + order_sizes (milik Order Domain).
+   */
+  async getTopProducts(
+    from: Date,
+    to: Date,
+    limit: number = 5,
+  ): Promise<Array<{ productType: string; qty: number; revenue: number }>> {
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: { notIn: ['DRAFT', 'DIBATALKAN'] },
+      },
+      include: {
+        items: {
+          include: { sizes: true },
+        },
+      },
+    });
+
+    const productMap = new Map<string, { qty: number; revenue: number }>();
+
+    for (const order of orders) {
+      for (const item of order.items) {
+        const qty = item.sizes.reduce((sum, s) => sum + s.qty, 0);
+        const revenue = item.basePriceSnapshot * qty;
+        const existing = productMap.get(item.productType) ?? { qty: 0, revenue: 0 };
+        existing.qty += qty;
+        existing.revenue += revenue;
+        productMap.set(item.productType, existing);
+      }
+    }
+
+    return Array.from(productMap.entries())
+      .map(([productType, data]) => ({ productType, ...data }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+  }
+
+  /**
+   * Top customer berdasarkan jumlah order dan total belanja dalam periode.
+   * Join orders + payments (milik Finance, tapi orderId FK ada di orders).
+   * Data customer di-resolve via CustomerService.
+   */
+  async getTopCustomers(
+    from: Date,
+    to: Date,
+    limit: number = 5,
+  ): Promise<Array<{ customerId: string; nama: string; orderCount: number; totalSpent: number }>> {
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: { notIn: ['DRAFT', 'DIBATALKAN'] },
+      },
+      select: { id: true, customerId: true },
+    });
+
+    const customerOrderMap = new Map<string, string[]>();
+    for (const order of orders) {
+      const list = customerOrderMap.get(order.customerId) ?? [];
+      list.push(order.id);
+      customerOrderMap.set(order.customerId, list);
+    }
+
+    // Get revenue per customer from payments (only SUCCESS)
+    const orderIds = orders.map((o) => o.id);
+    const payments = await prisma.payment.findMany({
+      where: {
+        orderId: { in: orderIds },
+        status: 'SUCCESS',
+      },
+      select: { orderId: true, jumlah: true },
+    });
+
+    const orderRevenueMap = new Map<string, number>();
+    for (const p of payments) {
+      orderRevenueMap.set(p.orderId, (orderRevenueMap.get(p.orderId) ?? 0) + p.jumlah);
+    }
+
+    const results: Array<{
+      customerId: string;
+      nama: string;
+      orderCount: number;
+      totalSpent: number;
+    }> = [];
+
+    for (const [customerId, customerOrderIds] of customerOrderMap.entries()) {
+      const totalSpent = customerOrderIds.reduce(
+        (sum, oid) => sum + (orderRevenueMap.get(oid) ?? 0),
+        0,
+      );
+      results.push({
+        customerId,
+        nama: '', // resolved below
+        orderCount: customerOrderIds.length,
+        totalSpent,
+      });
+    }
+
+    // Resolve customer names via CustomerService (DDD boundary)
+    const customerIds = results.map((r) => r.customerId);
+    const customers = await this.customerService.getCustomersByIdsInternal(customerIds);
+    for (const r of results) {
+      r.nama = customers.get(r.customerId)?.nama ?? 'Unknown';
+    }
+
+    return results.sort((a, b) => b.totalSpent - a.totalSpent).slice(0, limit);
   }
 }
