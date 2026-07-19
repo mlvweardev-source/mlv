@@ -1,0 +1,120 @@
+name: E2E Cypress
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'cypress/**'
+      - 'apps/web/**'
+      - 'apps/admin/**'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-test-secret-key-for-e2e
+      MIDTRANS_SERVER_KEY: ci-midtrans-test-key
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: mlv
+          POSTGRES_PASSWORD: mlv_secret
+          POSTGRES_DB: mlv
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mlv"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @mlv/db db:generate
+
+      - name: Build (turbo)
+        run: pnpm turbo build
+
+      - name: Migrate & Seed Database (turbo)
+        run: pnpm turbo db:migrate db:seed
+
+      - name: Install Cypress Binary
+        run: pnpm cypress install
+
+      - name: Start Services & Run Cypress
+        run: |
+          # Start API
+          DATABASE_URL="${DATABASE_URL}" REDIS_HOST=localhost REDIS_PORT=6379 \
+            JWT_SECRET="${JWT_SECRET}" \
+            pnpm --filter @mlv/api start &
+          API_PID=$!
+
+          # Start web on port 4000
+          PORT=4000 NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            pnpm --filter @mlv/web start &
+          WEB_PID=$!
+
+          # Start admin on port 4001
+          PORT=4001 NEXT_PUBLIC_API_URL=http://localhost:3000 \
+            pnpm --filter @mlv/admin start &
+          ADMIN_PID=$!
+
+          # Wait for API health
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && break
+            sleep 2
+          done
+
+          # Wait for web
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4000 && break
+            sleep 2
+          done
+
+          # Wait for admin
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4001 && break
+            sleep 2
+          done
+
+          # Run Cypress
+          pnpm cypress run --browser electron || CYPRESS_EXIT=$?
+
+          # Cleanup
+          kill $API_PID $WEB_PID $ADMIN_PID 2>/dev/null || true
+          exit ${CYPRESS_EXIT:-0}
+        env:
+          CYPRESS_API_URL: http://localhost:3000
+          CYPRESS_WEB_URL: http://localhost:4000
+          CYPRESS_ADMIN_URL: http://localhost:4001
