@@ -33,7 +33,7 @@ export class GeminiClient {
   private readonly genAI: GoogleGenerativeAI;
   private readonly modelName: string;
 
-  constructor(apiKey: string, modelName = 'gemini-3.5-flash') {
+  constructor(apiKey: string, modelName = 'gemini-2.5-flash') {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.modelName = modelName;
   }

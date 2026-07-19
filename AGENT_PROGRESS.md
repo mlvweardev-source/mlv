@@ -1,4 +1,4 @@
-# AGENT_PROGRESS.md — Memori Agent Lintas Sesi
+﻿# AGENT_PROGRESS.md — Memori Agent Lintas Sesi
 
 > **WAJIB DIBACA** di awal setiap sesi baru sebelum melanjutkan pekerjaan.
 > Jika ada perbedaan keputusan teknis antara file ini dan dokumen rencana awal, **ikuti file ini** karena ini representasi keputusan final yang sudah dieksekusi di kode.
@@ -48,15 +48,14 @@ Item tertunda lain dari Fase 5 yang mungkin mau di-bundle ke Fase 11: refund wor
 
 | 11 | 2026-07-18 | **Fase 11 selesai: Integrasi Payment Gateway Lanjutan — Reservasi Kadaluarsa & Refund**. **TTL reservasi 24 jam**: default di `inventory.service.ts` diubah dari 15 menit ke 24 jam; `executeCheckout` mengirim `expiresAt` eksplisit 24 jam. **Midtrans Snap expiry**: `initMidtransSnap` menambah parameter `expiry.duration: 24, unit: 'hour'` — Snap link dan reservasi kadaluarsa bersamaan. **Scheduler reservasi kadaluarsa**: `ReservationExpiryProcessor` (BullMQ repeatable job, interval 15 menit via `Queue.upsertJobScheduler`) — query `stock_reservations` ACTIVE + `expires_at` terlewati → per order: release reservasi + cancel order + publish `ReservationExpired` event + activity log. Module `ReservationExpiryModule` di-register di `AppModule`. **Webhook expire handling**: `PaymentExpired` dirutekan ke `ORDER_EVENTS` + `INVENTORY_EVENTS` + `NOTIFICATION_EVENTS`; `OrderEventsProcessor.handlePaymentExpired()` cancel order (idempotent: skip jika bukan `MENUNGGU_PEMBAYARAN_DP`) + publish `ReservationExpired` untuk WA notification. Dua jalur (scheduler + webhook) idempoten via cek status reservasi ACTIVE + status order. **Event baru**: `ReservationExpired` (EVENT_NAMES + routing → NOTIFICATION_EVENTS), payload `ReservationExpiredPayload extends CustomerContactFields` (orderNumber, customerNama, customerNoHp). **Notification template**: `reservation.expired` → WHATSAPP: "pesanan dibatalkan otomatis karena DP belum dibayar dalam 24 jam". **Refund Midtrans sungguhan**: `executeApprovalEffect` REFUND case — sebelum efek internal, panggil Midtrans `POST /v2/{order_id}/refund`; gagal → `BadRequestException` (efek internal TIDAK jalan, approval tidak dieksekusi); sukses → payment status → SUCCESS lalu release + cancel. `callMidtransRefund()` mencari payment SUCCESS, bikin refund_id unik, POST ke sandbox/production API. Payment status dicatat (SUCCESS/FAILED) sebagai jejak staf. **PaymentExpired event diperkaya** dengan customer contact (nama, noHp, orderNumber) untuk render template WA. **Tests**: 18 suites, 172/172 pass — termasuk test baru `reservation-expiry.processor.spec.ts` (5 tests: normal, skip non-MENUNGGU_PEMBAYARAN_DP, multiple orders) + `finance.refund.spec.ts` (4 tests: refund sukses, API gagal, no payment, payment FAILED) + test `handlePaymentExpired` di `order.service.spec.ts` (4 tests). **CI hijau terverifikasi** (run [29645856748](https://github.com/mlvweardev-source/mlv/actions/runs/29645856748), commit `d3d0635`): Build + Migrate + Lint + Test semua success. | Keputusan user dieksekusi: (1) TTL 24 jam; (2) auto-DIBATALKAN + WA; (3) BullMQ repeat job; (4) Midtrans expiry disamakan; (5) webhook expire trigger release+cancel. Item tertunda: `enabled_payments` filtering, VA transfer manual (bukan scope fase ini). | Menunggu konfirmasi siap lanjut ke **Fase 12: AI Domain**. |
 
-| 12.1 | 2026-07-18 | **Fase 12 Bagian 1 selesai: Fondasi AI Gateway & Design Analyzer**. **packages/ai**: GeminiClient wrapper (@google/generative-ai, model gemini-2.0-flash); RateLimiter (Redis-based, 50 req/jam per pelanggan, key atelimit:{service}:{customerId}); prompt templates (design-analyzer.ts � system prompt + user prompt, terpisah dari logic). **services/ai-gateway**: DesignAnalyzerModule (controller + service); RateLimiterMiddleware (reusable, Redis-backed, fail-open jika Redis down); POST /ai/design-analyzer endpoint (terima catatanTeks + productType, return JSON terstruktur: warna, lokasi_print, estimasi_kompleksitas, saran); ConfigModule untuk GEMINI_API_KEY; CORS enabled. **services/api (Order Domain)**: createDesignRecord panggil ai-gateway secara **synchronous** (10 detik timeout) � hasil AI langsung tersimpan di order_designs.hasil_ekstraksi_ai; PATCH /orders/:id/designs/:designId/confirm endpoint untuk konfirmasi/tolak hasil AI (DITERIMA/DITOLAK); **fallback-safe**: AI failure TIDAK memblokir design upload (hasil 
-ull). **Frontend (apps/web)**: /pesan � kartu hasil AI muncul setelah upload desain (warna, lokasi print, kompleksitas, saran); /pesanan/[id] � detail desain menampilkan hasil AI + tombol Terima/Tolak; OrderDesign type ditambah hasilEkstraksiAi. **Env baru**: AI_GATEWAY_URL di .env.example (default http://localhost:3002). **Tests**: 19 suites, 189/189 pass (packages/ai: 10, ai-gateway: 7, api: 172). **CI hijau** (run [29655636334](https://github.com/mlvweardev-source/mlv/actions/runs/29655636334) commit 8319f57). | AI selalu asistif (�17.4, �17.5): timeout 10 detik, fallback 
-ull, tidak pernah blocking. Rate limiter reusable untuk layanan AI berikutnya. Struktur per layanan AI (�9): siap untuk Quotation Assistant, Customer Support, dst. | Menunggu konfirmasi lanjut **Fase 12 Bagian 2** (Quotation Assistant & Customer Support). |
+| 12.1 | 2026-07-18 | **Fase 12 Bagian 1 selesai: Fondasi AI Gateway & Design Analyzer**. **packages/ai**: GeminiClient wrapper (@google/generative-ai, model gemini-2.0-flash); RateLimiter (Redis-based, 50 req/jam per pelanggan, key atelimit:{service}:{customerId}); prompt templates (design-analyzer.ts � system prompt + user prompt, terpisah dari logic). **services/ai-gateway**: DesignAnalyzerModule (controller + service); RateLimiterMiddleware (reusable, Redis-backed, fail-open jika Redis down); POST /ai/design-analyzer endpoint (terima catatanTeks + productType, return JSON terstruktur: warna, lokasi_print, estimasi_kompleksitas, saran); ConfigModule untuk GEMINI_API_KEY; CORS enabled. **services/api (Order Domain)**: createDesignRecord panggil ai-gateway secara **synchronous** (10 detik timeout) � hasil AI langsung tersimpan di order_designs.hasil_ekstraksi_ai; PATCH /orders/:id/designs/:designId/confirm endpoint untuk konfirmasi/tolak hasil AI (DITERIMA/DITOLAK); **fallback-safe**: AI failure TIDAK memblokir design upload (hasil 
+ull). **Frontend (apps/web)**: /pesan � kartu hasil AI muncul setelah upload desain (warna, lokasi print, kompleksitas, saran); /pesanan/[id] � detail desain menampilkan hasil AI + tombol Terima/Tolak; OrderDesign type ditambah hasilEkstraksiAi. **Env baru**: AI_GATEWAY_URL di .env.example (default http://localhost:3002). **Tests**: 19 suites, 189/189 pass (packages/ai: 10, ai-gateway: 7, api: 172). **CI hijau** (run [29655636334](https://github.com/mlvweardev-source/mlv/actions/runs/29655636334) commit 8319f57). | AI selalu asistif (�17.4, �17.5): timeout 10 detik, fallback 
+ull, tidak pernah blocking. Rate limiter reusable untuk layanan AI berikutnya. Struktur per layanan AI (�9): siap untuk Quotation Assistant, Customer Support, dst. | Menunggu konfirmasi lanjut **Fase 12 Bagian 2** (Quotation Assistant & Customer Support). |
 
 **Hal yang perlu diputuskan sebelum Fase 12 Bagian 2**:
-1. **Quotation Assistant** � apakah perlu menghitung harga otomatis berdasarkan desain yang dianalisis AI, atau cukup estimasi kasar berdasarkan kompleksitas?
-2. **Customer Support chatbot** � integrasi dengan customer chat yang sudah ada (Fase 10.4), atau chatbot terpisah?
-3. **Model AI** � apakah gemini-2.0-flash cukup untuk semua layanan AI, atau perlu model berbeda untuk task berbeda (mis. gemini-2.0-pro untuk analisis kompleks)?
-4. **Monitoring** � apakah perlu dashboard untuk memantau penggunaan AI (request count, token usage, error rate)?
+1. **Quotation Assistant** ? apakah perlu menghitung harga otomatis berdasarkan desain yang dianalisis AI, atau cukup estimasi kasar berdasarkan kompleksitas?
+2. **Customer Support chatbot** ? integrasi dengan customer chat yang sudah ada (Fase 10.4), atau chatbot terpisah?
+3. **Monitoring** ? apakah perlu dashboard untuk memantau penggunaan AI (request count, token usage, error rate)?
 
 **Jangan mulai bagian berikutnya sebelum aku bilang lanjut.**
 
@@ -65,10 +64,28 @@ ull, tidak pernah blocking. Rate limiter reusable untuk layanan AI berikutnya. S
 
 **3 masalah ditemukan saat review dan sudah diperbaiki:**
 
-1. **gemini-2.0-flash sudah di-shutdown Google (1 Juni 2026)** ? diganti gemini-3.5-flash. Real API test ditambahkan (gemini-client-real.spec.ts) � skip jika GEMINI_API_KEY tidak set, tapi saat ada key, benar-benar hit API dan verifikasi response JSON valid. Pola ini mirip concurrency test Inventory yang hit DB asli � dependency eksternal harus minimal 1 test bukan mock.
+1. **gemini-2.0-flash sudah di-shutdown Google (1 Juni 2026)** → diganti **gemini-2.5-flash** (bukan 3.5-flash). Alasan pemilihan: (a) status stable/production, bukan preview — setelah insiden 2.0-flash di-shutdown mendadak, prioritas model tidak rawan perubahan tiba-tiba; (b) skor FACTS Grounding lebih tinggi — penting untuk Customer Support bot dan Sales Insight yang jawabannya harus akurat terhadap data bisnis nyata; (c) biaya lebih rendah ($0.30/$2.50 per 1M token vs $1.50/$9 untuk 3.5-flash). Real API test ditambahkan (gemini-client-real.spec.ts) — skip jika GEMINI_API_KEY tidak set, tapi saat ada key, benar-benar hit API dan verifikasi response JSON valid.
 
-2. **RateLimiterMiddleware fail-open ? fail-closed**. Alasan: rate limiter = kontrol biaya; saat Redis down (kita tidak bisa pantau usage), sistem seharusnya TIDAK membuka lebar. Karena AI memang asistif (boleh tidak jalan), fail-closed menghasilkan experience yang sama seperti AI gagal karena sebab lain � upload desain tetap jalan.
+2. **RateLimiterMiddleware fail-open → fail-closed**. Alasan: rate limiter = kontrol biaya; saat Redis down (kita tidak bisa pantau usage), sistem seharusnya TIDAK membuka lebar. Karena AI memang asistif (boleh tidak jalan), fail-closed menghasilkan experience yang sama seperti AI gagal karena sebab lain → upload desain tetap jalan.
 
-3. **Demo scripts ditambahkan**: demo-ai-fallback.ts (upload saat AI gateway mati) + demo-ai-rate-limit.ts (51st request ditolak 429). Kedua demo butuh Docker Compose (DB + Redis) untuk dijalankan lokal, tapi logic-nya terbukti via unit tests.
+3. **Demo scripts ditambahkan**: demo-ai-fallback.ts (upload saat AI gateway mati) + demo-ai-rate-limit.ts (51st request ditolak 429). Kedua demo butuh Docker Compose (DB + Redis) untuk dijalankan lokal.
+
+### Verifikasi Real (2026-07-19)
+
+**Real API Test (gemini-2.5-flash)**:
+- ✅ API call berhasil, usage metadata diterima (prompt=9, candidates=1, total=15)
+- ✅ Design Analyzer response valid: complexity=RENDAH, print locations=1, warna kain=biru Navy
+- ✅ JSON structure sesuai skema (warna, lokasi_print, estimasi_kompleksitas)
+
+**Demo Fallback**:
+- ✅ AI gateway down → design tetap tersimpan dengan `hasilEkstraksiAi=null`
+- ✅ Order tidak rusak, masih bisa lanjut ke checkout
+- ✅ 0 failure(s)
+
+**Demo Rate Limit**:
+- ✅ 50 request pertama: diterima (200)
+- ✅ Request ke-51: ditolak 429 dengan pesan "Batas permintaan AI tercapai (50 per jam)"
+- ✅ Headers: X-RateLimit-Limit=50, X-RateLimit-Remaining=0, X-RateLimit-Reset=3565
+- ✅ 0 failure(s)
 
 **CI hijau setelah perbaikan**: run [29668885758](https://github.com/mlvweardev-source/mlv/actions/runs/29668885758) commit 2e06201. 19 suites, 192/192 pass (packages/ai: 13, ai-gateway: 7, api: 172).

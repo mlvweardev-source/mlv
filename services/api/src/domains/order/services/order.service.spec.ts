@@ -9,6 +9,13 @@ import { ActivityLogService } from '../../../common/activity-log/activity-log.se
 import { ActorType } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
+// Mock global fetch for AI gateway calls (Fase 12)
+global.fetch = jest.fn().mockResolvedValue({
+  ok: false,
+  status: 503,
+  text: () => Promise.resolve('Service Unavailable'),
+});
+
 // Mock Prisma
 jest.mock('@mlv/db', () => ({
   prisma: {
