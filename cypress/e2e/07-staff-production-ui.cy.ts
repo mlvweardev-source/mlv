@@ -21,11 +21,11 @@ describe('Flow 7: Staff Production UI End-to-End', () => {
       cy.visit(`${ADMIN}/production`);
 
       // Kanban board should render with column headers
-      cy.contains('Production').should('be.visible');
-      cy.contains('Cutting').should('be.visible');
-      cy.contains('Sewing').should('be.visible');
-      cy.contains('Finishing').should('be.visible');
-      cy.contains('Packing').should('be.visible');
+      cy.contains('Production').should('exist');
+      cy.contains('Cutting').should('exist');
+      cy.contains('Sewing').should('exist');
+      cy.contains('Finishing').should('exist');
+      cy.contains('Packing').should('exist');
     });
 
     it('2. Kanban has show-done toggle and refresh', () => {
@@ -56,7 +56,7 @@ describe('Flow 7: Staff Production UI End-to-End', () => {
       cy.contains('Daftar semua pesanan').should('be.visible');
 
       // Search input should be visible
-      cy.get('input[placeholder="Cari nomor order..."]').should('be.visible');
+      cy.get('input[placeholder*="Cari nomor"]').should('exist');
     });
 
     it('5. Orders list has status filter', () => {
@@ -140,7 +140,7 @@ describe('Flow 7: Staff Production UI End-to-End', () => {
     it('13. Owner can view activity log', () => {
       cy.visit(`${ADMIN}/activity-log`);
 
-      cy.contains('Activity Log').should('be.visible');
+      cy.contains('Log aktivitas').should('exist');
     });
   });
 

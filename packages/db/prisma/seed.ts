@@ -329,7 +329,7 @@ async function main() {
   console.log('🌱 Seeding initial stock balances (tercatat lewat stock_movements)...');
   const initialStock = [
     // Existing
-    { name: 'Kain', qty: 1000 },
+    { name: 'Kain', qty: 10000 },
     { name: 'Label', qty: 5000 },
     { name: 'Plastik Kemasan', qty: 5000 },
     { name: 'Hangtag', qty: 5000 },
