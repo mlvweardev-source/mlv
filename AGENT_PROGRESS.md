@@ -59,3 +59,16 @@ ull, tidak pernah blocking. Rate limiter reusable untuk layanan AI berikutnya. S
 4. **Monitoring** — apakah perlu dashboard untuk memantau penggunaan AI (request count, token usage, error rate)?
 
 **Jangan mulai bagian berikutnya sebelum aku bilang lanjut.**
+
+
+## Koreksi Review Fase 12 Bagian 1 (2026-07-19)
+
+**3 masalah ditemukan saat review dan sudah diperbaiki:**
+
+1. **gemini-2.0-flash sudah di-shutdown Google (1 Juni 2026)** ? diganti gemini-3.5-flash. Real API test ditambahkan (gemini-client-real.spec.ts) — skip jika GEMINI_API_KEY tidak set, tapi saat ada key, benar-benar hit API dan verifikasi response JSON valid. Pola ini mirip concurrency test Inventory yang hit DB asli — dependency eksternal harus minimal 1 test bukan mock.
+
+2. **RateLimiterMiddleware fail-open ? fail-closed**. Alasan: rate limiter = kontrol biaya; saat Redis down (kita tidak bisa pantau usage), sistem seharusnya TIDAK membuka lebar. Karena AI memang asistif (boleh tidak jalan), fail-closed menghasilkan experience yang sama seperti AI gagal karena sebab lain — upload desain tetap jalan.
+
+3. **Demo scripts ditambahkan**: demo-ai-fallback.ts (upload saat AI gateway mati) + demo-ai-rate-limit.ts (51st request ditolak 429). Kedua demo butuh Docker Compose (DB + Redis) untuk dijalankan lokal, tapi logic-nya terbukti via unit tests.
+
+**CI hijau setelah perbaikan**: run [29668885758](https://github.com/mlvweardev-source/mlv/actions/runs/29668885758) commit 2e06201. 19 suites, 192/192 pass (packages/ai: 13, ai-gateway: 7, api: 172).
