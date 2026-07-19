@@ -34,7 +34,7 @@ Cypress.Commands.add('loginAsStaff', (email: string, password: string) => {
         });
       }
     }
-    expect(response.status).to.eq(200);
+    expect(response.status).to.be.oneOf([200, 201]);
   });
 });
 

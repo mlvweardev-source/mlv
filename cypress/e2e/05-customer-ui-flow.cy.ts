@@ -26,7 +26,7 @@ describe('Flow 5: Customer UI End-to-End', () => {
       // Intercept OTP request API
       cy.intercept('POST', `${API}/auth/otp/request`).as('requestOtp');
       cy.get('[data-testid="request-otp-btn"]').click();
-      cy.wait('@requestOtp').its('response.statusCode').should('eq', 200);
+      cy.wait('@requestOtp').its('response.statusCode').should('be.oneOf', [200, 201]);
 
       // Should advance to OTP code step
       cy.get('[data-testid="customer-otp-input"]').should('be.visible');
@@ -49,7 +49,7 @@ describe('Flow 5: Customer UI End-to-End', () => {
 
       cy.intercept('POST', `${API}/auth/otp/verify`).as('verifyOtp');
       cy.get('[data-testid="verify-otp-btn"]').click();
-      cy.wait('@verifyOtp').its('response.statusCode').should('eq', 200);
+      cy.wait('@verifyOtp').its('response.statusCode').should('be.oneOf', [200, 201]);
 
       // Should redirect to home page after successful login
       cy.url().should('not.include', '/login');

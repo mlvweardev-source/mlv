@@ -58,6 +58,7 @@ async function main() {
     where: { noHp: '08123456789' },
     update: {},
     create: {
+      id: 'f2df1936-d819-46fd-8658-96b9dff7b7ce',
       nama: 'Budi Pelanggan',
       noHp: '08123456789',
       email: 'budi@example.com',
