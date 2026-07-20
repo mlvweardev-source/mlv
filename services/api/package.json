@@ -26,7 +26,9 @@
     "demo:ai-rate-limit": "ts-node scripts/demo-ai-rate-limit.ts",
     "demo:quotation-assistant": "ts-node scripts/demo-quotation-assistant.ts",
     "demo:customer-support": "ts-node scripts/demo-customer-support.ts",
-    "verify:bullboard": "ts-node scripts/verify-bullboard.ts"
+    "verify:bullboard": "ts-node scripts/verify-bullboard.ts",
+    "perf:setup": "ts-node scripts/perf-setup.ts",
+    "perf:verify": "ts-node scripts/perf-verify.ts"
   },
   "dependencies": {
     "@bull-board/api": "^6.0.0",

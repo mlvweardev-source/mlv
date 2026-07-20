@@ -57,3 +57,7 @@ next-env.d.ts
 
 # Uploaded files (local disk storage — desain Fase 3, invoice PDF Fase 9.4)
 uploads/
+
+# Performance test outputs
+tests/performance/*.json
+tests/performance/*.jsonl

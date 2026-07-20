@@ -1,0 +1,140 @@
+name: Performance Test (k6)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://mlv:mlv_secret@localhost:5432/mlv_perf?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-test-secret-key-for-e2e
+      MIDTRANS_SERVER_KEY: ci-midtrans-test-key
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: mlv
+          POSTGRES_PASSWORD: mlv_secret
+          POSTGRES_DB: mlv_perf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mlv"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @mlv/db db:generate
+
+      - name: Build (turbo)
+        run: pnpm turbo build
+
+      - name: Migrate & Seed Database
+        run: pnpm turbo db:migrate db:seed
+
+      - name: Install k6
+        run: |
+          curl -sSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Start API Server
+        run: |
+          cd services/api
+          node dist/main.js &
+          API_PID=$!
+          echo "API_PID=$API_PID" >> $GITHUB_ENV
+          cd ../..
+
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && break
+            sleep 2
+          done
+
+      - name: Run Setup Script
+        run: |
+          pnpm --filter @mlv/api perf:setup
+          cat tests/performance/setup-output.json
+
+      - name: Run k6 - Stock Reservation Stress Test
+        run: |
+          cd tests/performance
+          SETUP=$(cat setup-output.json)
+          OWNER_TOKEN=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).ownerToken))")
+          MATERIAL_ID=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).materialId))")
+
+          k6 run \
+            -e API_URL=http://localhost:3000 \
+            -e OWNER_TOKEN="$OWNER_TOKEN" \
+            -e MATERIAL_ID="$MATERIAL_ID" \
+            -e INITIAL_STOCK=100 \
+            --out json=k6-stock-reserve-results.json \
+            stock-reserve.js
+
+      - name: Verify Stock Integrity (after reservation test)
+        run: pnpm --filter @mlv/api perf:verify
+
+      - name: Run Setup Script (re-seed for checkout test)
+        run: pnpm --filter @mlv/api perf:setup
+
+      - name: Run k6 - Order Checkout Stress Test
+        run: |
+          cd tests/performance
+          SETUP=$(cat setup-output.json)
+          OWNER_TOKEN=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).ownerToken))")
+          CUSTOMER_ID=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).customerId))")
+
+          k6 run \
+            -e API_URL=http://localhost:3000 \
+            -e OWNER_TOKEN="$OWNER_TOKEN" \
+            -e CUSTOMER_ID="$CUSTOMER_ID" \
+            -e INITIAL_STOCK=100 \
+            --out json=k6-order-checkout-results.json \
+            order-checkout.js
+
+      - name: Verify Stock Integrity (after checkout test)
+        run: pnpm --filter @mlv/api perf:verify
+
+      - name: Upload k6 Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: tests/performance/*.json
+
+      - name: Stop API Server
+        if: always()
+        run: kill $API_PID 2>/dev/null || true
