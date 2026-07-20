@@ -1,6 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, staffToken, customerToken, cleanTestData, seedTestData } from './test-setup';
+import {
+  createTestApp,
+  staffToken,
+  customerToken,
+  cleanTestData,
+  seedTestData,
+} from './test-setup';
 import { UserRole } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
