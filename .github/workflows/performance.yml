@@ -92,9 +92,10 @@ jobs:
       - name: Run k6 - Stock Reservation Stress Test
         run: |
           cd tests/performance
-          SETUP=$(cat setup-output.json)
-          OWNER_TOKEN=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).ownerToken))")
-          MATERIAL_ID=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).materialId))")
+          OWNER_TOKEN=$(jq -r '.ownerToken' setup-output.json)
+          MATERIAL_ID=$(jq -r '.materialId' setup-output.json)
+          echo "Token length: ${#OWNER_TOKEN}"
+          echo "Material ID: $MATERIAL_ID"
 
           k6 run \
             -e API_URL=http://localhost:3000 \
@@ -113,9 +114,10 @@ jobs:
       - name: Run k6 - Order Checkout Stress Test
         run: |
           cd tests/performance
-          SETUP=$(cat setup-output.json)
-          OWNER_TOKEN=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).ownerToken))")
-          CUSTOMER_ID=$(echo $SETUP | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).customerId))")
+          OWNER_TOKEN=$(jq -r '.ownerToken' setup-output.json)
+          CUSTOMER_ID=$(jq -r '.customerId' setup-output.json)
+          echo "Token length: ${#OWNER_TOKEN}"
+          echo "Customer ID: $CUSTOMER_ID"
 
           k6 run \
             -e API_URL=http://localhost:3000 \

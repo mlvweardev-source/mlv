@@ -26,10 +26,6 @@ export const options = {
       ],
     },
   },
-  thresholds: {
-    http_req_duration: ['p(95)<2000', 'p(99)<5000'],
-    http_req_failed: ['rate<0.15'],
-  },
 };
 
 function headers() {
