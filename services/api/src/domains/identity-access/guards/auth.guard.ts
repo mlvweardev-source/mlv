@@ -79,6 +79,12 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Token tidak valid atau sudah kadaluarsa');
     }
 
+    // Reject tokens without identity (sub) — prevents access with forged tokens
+    // that have valid signature but no user/customer identifier.
+    if (!payload.sub) {
+      throw new UnauthorizedException('Token tidak memiliki identitas pengguna');
+    }
+
     // Attach payload to request for downstream use
     request.user = payload;
 

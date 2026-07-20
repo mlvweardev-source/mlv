@@ -125,14 +125,12 @@ describe('Security Tests — RBAC Bypass Attempts', () => {
         '1h',
       );
 
-      // Should still pass JWT verification (sub is optional in JWT spec),
-      // but may fail at service level. The point is it shouldn't crash.
       const res = await request(app.getHttpServer())
         .get('/orders')
-        .set('Authorization', `Bearer ${noSubToken}`);
+        .set('Authorization', `Bearer ${noSubToken}`)
+        .expect(401);
 
-      // Either 200 (guard allows) or 401/403 — should NOT be 500
-      expect(res.status).not.toBe(500);
+      expect(res.body.message).toContain('identitas');
     });
   });
 
@@ -256,24 +254,24 @@ describe('Security Tests — RBAC Bypass Attempts', () => {
       const res = await request(app.getHttpServer())
         .patch(`/approvals/${approvalId}/decide`)
         .set('Authorization', `Bearer ${manajer()}`)
-        .send({ status: 'APPROVED' });
-      expect([401, 403]).toContain(res.status);
+        .send({ status: 'APPROVED' })
+        .expect(403);
     });
 
     it('penjahit CANNOT decide approval', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/approvals/${approvalId}/decide`)
         .set('Authorization', `Bearer ${penjahit()}`)
-        .send({ status: 'APPROVED' });
-      expect([401, 403]).toContain(res.status);
+        .send({ status: 'APPROVED' })
+        .expect(401);
     });
 
     it('customer CANNOT decide approval', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/approvals/${approvalId}/decide`)
         .set('Authorization', `Bearer ${cust()}`)
-        .send({ status: 'APPROVED' });
-      expect([401, 403]).toContain(res.status);
+        .send({ status: 'APPROVED' })
+        .expect(401);
     });
 
     it('approval status cannot be changed via PATCH body manipulation', async () => {
