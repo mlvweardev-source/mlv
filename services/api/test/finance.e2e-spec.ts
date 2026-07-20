@@ -251,6 +251,14 @@ describe('Finance — Integration Tests', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
 
+    it('happy: Manajer CAN access payments', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/payments')
+        .set('Authorization', `Bearer ${manajer()}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
     it('happy: filter by orderId', async () => {
       const orderId = await createOrderReadyForDP();
       await request(app.getHttpServer())
@@ -307,6 +315,13 @@ describe('Finance — Integration Tests', () => {
         .get('/invoices')
         .set('Authorization', `Bearer ${token}`)
         .expect(401);
+    });
+
+    it('error: Customer CANNOT access invoices without orderId', async () => {
+      await request(app.getHttpServer())
+        .get('/invoices')
+        .set('Authorization', `Bearer ${cust()}`)
+        .expect(400);
     });
   });
 

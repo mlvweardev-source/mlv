@@ -213,6 +213,17 @@ describe('Order — Integration Tests', () => {
         .expect(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
+
+    it('happy: Customer CAN access own orders', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/orders')
+        .set('Authorization', `Bearer ${cust()}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      for (const order of res.body) {
+        expect(order.customerId).toBe(seedData.customer.id);
+      }
+    });
   });
 
   describe('GET /orders/:id', () => {

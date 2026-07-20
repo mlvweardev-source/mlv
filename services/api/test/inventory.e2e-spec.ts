@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, staffToken, cleanTestData, seedTestData } from './test-setup';
+import { createTestApp, staffToken, customerToken, cleanTestData, seedTestData } from './test-setup';
 import { UserRole } from '@mlv/auth';
 import { prisma } from '@mlv/db';
 
@@ -31,6 +31,22 @@ describe('Inventory — Integration Tests', () => {
 
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('happy: Penjahit CAN access materials list', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/materials')
+        .set('Authorization', `Bearer ${penjahitToken()}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
+    it('error: Customer CANNOT access staff-only materials', async () => {
+      const token = customerToken(seedData.customer.id);
+      await request(app.getHttpServer())
+        .get('/materials')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
     });
 
     it('error: Unauthenticated cannot access', async () => {
