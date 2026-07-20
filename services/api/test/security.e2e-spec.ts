@@ -80,17 +80,11 @@ describe('Security Tests — RBAC Bypass Attempts', () => {
     });
 
     it('reject empty Bearer token', async () => {
-      await request(app.getHttpServer())
-        .get('/orders')
-        .set('Authorization', 'Bearer ')
-        .expect(401);
+      await request(app.getHttpServer()).get('/orders').set('Authorization', 'Bearer ').expect(401);
     });
 
     it('reject Authorization header without Bearer prefix', async () => {
-      await request(app.getHttpServer())
-        .get('/orders')
-        .set('Authorization', owner())
-        .expect(401);
+      await request(app.getHttpServer()).get('/orders').set('Authorization', owner()).expect(401);
     });
   });
 
