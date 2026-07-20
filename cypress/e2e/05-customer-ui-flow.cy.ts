@@ -134,11 +134,25 @@ describe('Flow 5: Customer UI End-to-End', () => {
         'be.visible',
       );
 
-      // Click checkout — frontend handles full flow (create order → add item → checkout → payment)
+      // Intercept payment creation to diagnose redirect failure
+      cy.intercept('POST', `${API}/payments`).as('createPayment');
+
+      // Click checkout
       cy.get('[data-testid="checkout-btn"]').click();
 
+      // Wait for payment creation — log response if it fails
+      cy.wait('@createPayment', { timeout: 30000 }).then((interception) => {
+        const status = interception.response?.statusCode;
+        const body = interception.response?.body;
+        cy.task('log', `POST /payments → status: ${status}`);
+        cy.task('log', `POST /payments → body: ${JSON.stringify(body)}`);
+        if (status && status >= 400) {
+          cy.task('log', `PAYMENT FAILED: ${JSON.stringify(body)}`);
+        }
+      });
+
       // Should redirect to payment page after checkout completes
-      cy.url({ timeout: 30000 }).should('include', '/pesan/bayar/');
+      cy.url({ timeout: 15000 }).should('include', '/pesan/bayar/');
       cy.contains('Menunggu Pembayaran DP').should('be.visible');
     });
   });
