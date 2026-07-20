@@ -2,6 +2,9 @@ import { prisma } from '@mlv/db';
 import { signJwt, ActorType, UserRole } from '@mlv/auth';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as dotenv from 'dotenv';
+
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ci-test-secret-key-for-e2e';
 const INITIAL_STOCK = parseInt(process.env.INITIAL_STOCK || '100');

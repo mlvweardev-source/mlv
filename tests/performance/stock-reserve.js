@@ -24,6 +24,11 @@ export const options = {
       ],
     },
   },
+  thresholds: {
+    // Lenient for CI shared runners (resource-limited). Tighten for dedicated perf env.
+    http_req_duration: ['p(95)<2000', 'p(99)<5000'],
+    http_req_failed: ['rate<0.3'],
+  },
 };
 
 export default function () {
