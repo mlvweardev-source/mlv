@@ -67,7 +67,9 @@ async function verify() {
 
   if (mismatch) {
     console.warn('');
-    console.warn('WARNING: Available + Reserved != Initial. This may be due to consumed stock (normal for checkout tests).');
+    console.warn(
+      'WARNING: Available + Reserved != Initial. This may be due to consumed stock (normal for checkout tests).',
+    );
   }
 
   console.log('');
